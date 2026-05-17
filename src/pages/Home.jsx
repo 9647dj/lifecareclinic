@@ -174,7 +174,7 @@ export default function Home() {
                 Main Road W No 7 Jourian, Near SBI, Jammu Kashmir 181202
               </span>
               <a
-                href="https://maps.app.goo.gl/AYZAqXi3CGLW5bdj9"
+                href="https://maps.app.goo.gl/PUiS39YiwmXtdwp66"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-xs font-semibold text-clinic-green hover:text-clinic-green-dark transition-colors whitespace-nowrap"
@@ -189,7 +189,7 @@ export default function Home() {
             <div className="w-full h-80 sm:h-96">
               <iframe
                 title="Life Care Clinic Location"
-                src="https://maps.google.com/maps?q=Jourian+Jammu+Kashmir+181202+India+Near+SBI&output=embed&z=15"
+                src="https://maps.google.com/maps?q=32.8335247,74.5806594&z=17&output=embed"
                 width="100%"
                 height="100%"
                 style={{ border: 0 }}

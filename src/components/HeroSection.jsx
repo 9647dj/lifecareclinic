@@ -62,6 +62,7 @@ export default function HeroSection() {
             { value: '9+', label: 'Specialist Doctors' },
             { value: '6', label: 'Days a Week' },
             { value: '✓', label: 'Lab & Pharmacy Available' },
+            { value: '⭐⭐⭐⭐⭐', label: '5 Star Rated on Google' },
           ].map((stat, i, arr) => (
             <div key={stat.label} className="flex items-center">
               <div className="px-10 py-5 text-center">
