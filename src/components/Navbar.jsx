@@ -1,6 +1,7 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import logo from '../assets/logo.jpeg';
+import { useAuth } from '../context/AuthContext';
 
 const NAV_LINKS = [
   { label: 'Find a Doctor', href: '#doctors' },
@@ -27,8 +28,19 @@ function PhoneIcon({ className }) {
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const isHome = location.pathname === '/';
+  const { user, profile, signOut } = useAuth();
+
+  const displayName = profile?.full_name || user?.email?.split('@')[0] || '';
+  const initials = displayName.charAt(0).toUpperCase();
+
+  async function handleLogout() {
+    await signOut();
+    navigate('/');
+  }
 
   function openCallback() {
     document.dispatchEvent(new CustomEvent('open-callback'));
@@ -115,6 +127,44 @@ export default function Navbar() {
                 <PhoneIcon className="w-4 h-4" />
                 Request Callback
               </button>
+              {user ? (
+                <div className="relative">
+                  <button onClick={() => setUserMenuOpen((o) => !o)}
+                    className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl border border-gray-200 hover:border-clinic-green transition-colors">
+                    <div className="w-7 h-7 rounded-lg bg-clinic-green flex items-center justify-center text-white font-bold text-sm">{initials}</div>
+                    <span className="text-sm font-semibold text-gray-700 max-w-[100px] truncate">{displayName}</span>
+                    <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {userMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-100 rounded-xl shadow-lg py-1 z-50">
+                      <Link to="/profile" onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-clinic-green-lite hover:text-clinic-green-dark transition-colors">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        My Profile
+                      </Link>
+                      <button onClick={() => { setUserMenuOpen(false); handleLogout(); }}
+                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link to="/login"
+                  className="inline-flex items-center gap-2 border border-gray-200 text-gray-700 hover:border-clinic-green hover:text-clinic-green text-sm font-semibold px-4 py-2.5 rounded-xl transition-all duration-200">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Login
+                </Link>
+              )}
             </div>
 
             {/* Hamburger — mobile */}
@@ -159,9 +209,27 @@ export default function Navbar() {
                   </a>
                 ))}
               </div>
+              {user ? (
+                <>
+                  <Link to="/profile" onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 hover:text-clinic-green hover:bg-clinic-green-lite rounded-xl transition-colors">
+                    <div className="w-6 h-6 rounded-lg bg-clinic-green flex items-center justify-center text-white font-bold text-xs">{initials}</div>
+                    {displayName} — My Profile
+                  </Link>
+                  <button onClick={() => { setMenuOpen(false); handleLogout(); }}
+                    className="w-full text-left flex items-center gap-2 px-4 py-3 text-sm font-medium text-red-500 hover:bg-red-50 rounded-xl transition-colors">
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <Link to="/login" onClick={() => setMenuOpen(false)}
+                  className="block text-center border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-sm hover:border-clinic-green hover:text-clinic-green transition-colors">
+                  Patient Login / Register
+                </Link>
+              )}
               {isHome ? (
                 <Link to="/admin" onClick={() => setMenuOpen(false)}
-                  className="block text-center border border-gray-200 text-gray-500 font-medium py-2.5 rounded-xl text-sm mt-1 hover:bg-gray-50 transition-colors">
+                  className="block text-center border border-gray-200 text-gray-400 font-medium py-2.5 rounded-xl text-sm mt-1 hover:bg-gray-50 transition-colors">
                   Admin Dashboard
                 </Link>
               ) : (

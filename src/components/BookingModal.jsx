@@ -3,6 +3,7 @@ import emailjs from '@emailjs/browser';
 import { supabase } from '../lib/supabase';
 import { getAvailableDates } from '../data/doctors';
 import DatePicker from './DatePicker';
+import { useAuth } from '../context/AuthContext';
 
 const EMAILJS_SERVICE_ID = 'lifecare_service';
 const EMAILJS_TEMPLATE_ID = 'template_hwkyqoo';
@@ -16,6 +17,19 @@ export default function BookingModal({ doctor, onClose }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
+  const { user, profile } = useAuth();
+
+  useEffect(() => {
+    if (profile) {
+      setForm((f) => ({
+        ...f,
+        name:    f.name    || profile.full_name || '',
+        mobile:  f.mobile  || profile.mobile    || '',
+        dob:     f.dob     || profile.dob       || '',
+        address: f.address || profile.address   || '',
+      }));
+    }
+  }, [profile]);
 
   const availableDates = isEyeCamp ? [] : getAvailableDates(doctor.schedule);
 
@@ -55,6 +69,8 @@ export default function BookingModal({ doctor, onClose }) {
           address: form.address.trim(),
           appointment_date: null,
           appointment_time: `Preferred Month: ${form.preferredMonth.trim()}`,
+          user_id: user?.id ?? null,
+          status: 'upcoming',
         }
       : {
           doctor_name: doctor.name,
@@ -65,6 +81,8 @@ export default function BookingModal({ doctor, onClose }) {
           address: form.address.trim(),
           appointment_date: selectedDate.date.toISOString().split('T')[0],
           appointment_time: selectedDate.timeDisplay,
+          user_id: user?.id ?? null,
+          status: 'upcoming',
         };
 
     const { error } = await supabase.from('appointments').insert([payload]);
