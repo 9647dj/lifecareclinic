@@ -12,7 +12,7 @@ export default function HeroSection() {
       <div className="absolute top-1/3 right-1/4 w-52 h-52 rounded-full opacity-5"
         style={{ background: 'radial-gradient(circle, white, transparent)' }} />
 
-      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-36 text-center">
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-28 md:py-44 text-center">
 
         {/* Top badge */}
         <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/25 rounded-full px-5 py-2 mb-8">
@@ -25,11 +25,11 @@ export default function HeroSection() {
           Life Care Clinic
         </h1>
         <p className="text-2xl md:text-3xl text-green-100 font-semibold mb-4">
-          Quality Healthcare with Specialist Doctors
+          Expert Care, Close to Home
         </p>
         <p className="text-green-200 text-base md:text-lg mb-12 max-w-2xl mx-auto leading-relaxed">
-          Your trusted medical partner in Jourian. Expert care, modern facilities,
-          and dedicated specialists — all under one roof.
+          Your trusted medical partner in Jourian. Specialist doctors available 6 days
+          a week — all under one roof.
         </p>
 
         {/* CTA Buttons */}
@@ -61,7 +61,7 @@ export default function HeroSection() {
           {[
             { value: '9+', label: 'Specialist Doctors' },
             { value: '6', label: 'Days a Week' },
-            { value: 'Est. 2020', label: 'Serving Jourian' },
+            { value: '✓', label: 'Lab & Pharmacy Available' },
           ].map((stat, i, arr) => (
             <div key={stat.label} className="flex items-center">
               <div className="px-10 py-5 text-center">

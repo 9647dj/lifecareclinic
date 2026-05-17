@@ -64,17 +64,12 @@ export default function CallbackButton() {
 
     emailjs.send(
       'lifecare_service',
-      'template_hwkyqoo',
+      'template_5x2r40x',
       {
         patient_name: form.name.trim(),
-        dob: 'N/A',
         mobile: form.mobile.trim(),
-        address: 'N/A',
-        doctor_name: 'Callback Request',
-        specialty: 'Patient requested a callback',
-        appointment_date: 'Callback Request',
-        appointment_time: form.preferredTime,
-        booked_at: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+        preferred_time: form.preferredTime,
+        submitted_at: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
       },
       'NpOFXkRESy0E3-8GA'
     ).catch(() => {});

@@ -4,10 +4,7 @@ export default function DoctorCard({ doctor, onBook }) {
 
       {/* Colored header */}
       <div className={`${doctor.lightColor} px-6 pt-7 pb-6 relative overflow-hidden`}>
-        <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full opacity-15"
-          style={{ backgroundColor: 'currentColor' }} />
-
-        <div className="flex items-start gap-4 relative">
+        <div className="flex items-start gap-4">
           <div className={`${doctor.color} w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-base flex-shrink-0 shadow-md`}>
             {doctor.initials}
           </div>
