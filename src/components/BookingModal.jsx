@@ -75,7 +75,6 @@ export default function BookingModal({ doctor, onClose }) {
       return;
     }
 
-    // Send email notification — fire and forget, don't block success on email
     emailjs.send(
       EMAILJS_SERVICE_ID,
       EMAILJS_TEMPLATE_ID,
@@ -107,6 +106,9 @@ export default function BookingModal({ doctor, onClose }) {
   const formatDate = (date) =>
     date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
+  const inputCls = (field) =>
+    `w-full border rounded-xl px-4 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-clinic-green focus:border-clinic-green ${errors[field] ? 'border-red-400 bg-red-50' : 'border-gray-200'}`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
@@ -136,7 +138,7 @@ export default function BookingModal({ doctor, onClose }) {
         </div>
 
         <div className="px-6 py-5">
-          {/* STEP 1: Date selection (regular bookings only) */}
+          {/* STEP 1: Date selection */}
           {step === 'dates' && (
             <>
               <h3 className="font-semibold text-gray-800 mb-1">Select Appointment Date</h3>
@@ -157,10 +159,10 @@ export default function BookingModal({ doctor, onClose }) {
                     <button
                       key={idx}
                       onClick={() => { setSelectedDate(slot); setStep('form'); }}
-                      className="w-full flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-blue-400 hover:bg-blue-50 transition-all text-left group"
+                      className="w-full flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-clinic-green hover:bg-clinic-green-lite transition-all text-left group"
                     >
                       <div>
-                        <p className="font-semibold text-gray-800 group-hover:text-blue-800">
+                        <p className="font-semibold text-gray-800 group-hover:text-clinic-green-dark">
                           {formatDate(slot.date)}
                         </p>
                         <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
@@ -171,7 +173,7 @@ export default function BookingModal({ doctor, onClose }) {
                           {slot.timeDisplay}
                         </p>
                       </div>
-                      <svg className="w-5 h-5 text-gray-300 group-hover:text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-5 h-5 text-gray-300 group-hover:text-clinic-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </button>
@@ -184,26 +186,24 @@ export default function BookingModal({ doctor, onClose }) {
           {/* STEP 2: Patient form */}
           {step === 'form' && (
             <>
-              {/* Selected date chip (regular only) */}
               {!isEyeCamp && selectedDate && (
                 <div className="flex items-center justify-between mb-5">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 flex items-center gap-2">
-                    <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="bg-clinic-green-lite border border-clinic-green-soft rounded-lg px-3 py-2 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-clinic-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                         d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     <div>
-                      <p className="text-xs font-semibold text-blue-700">{formatDate(selectedDate.date)}</p>
-                      <p className="text-xs text-blue-600">{selectedDate.timeDisplay}</p>
+                      <p className="text-xs font-semibold text-clinic-green-dark">{formatDate(selectedDate.date)}</p>
+                      <p className="text-xs text-clinic-green">{selectedDate.timeDisplay}</p>
                     </div>
                   </div>
-                  <button onClick={() => setStep('dates')} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                  <button onClick={() => setStep('dates')} className="text-sm text-clinic-green hover:text-clinic-green-dark font-semibold">
                     Change
                   </button>
                 </div>
               )}
 
-              {/* Eye camp info banner */}
               {isEyeCamp && (
                 <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 mb-5 flex items-start gap-2">
                   <svg className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -222,7 +222,6 @@ export default function BookingModal({ doctor, onClose }) {
               </h3>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Full Name */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
                   <input
@@ -230,12 +229,11 @@ export default function BookingModal({ doctor, onClose }) {
                     value={form.name}
                     onChange={(e) => handleChange('name', e.target.value)}
                     placeholder="Enter patient's full name"
-                    className={`w-full border rounded-xl px-4 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.name ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
+                    className={inputCls('name')}
                   />
                   {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
                 </div>
 
-                {/* Date of Birth (regular bookings only) */}
                 {!isEyeCamp && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
@@ -250,7 +248,6 @@ export default function BookingModal({ doctor, onClose }) {
                   </div>
                 )}
 
-                {/* Mobile */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number *</label>
                   <input
@@ -259,12 +256,11 @@ export default function BookingModal({ doctor, onClose }) {
                     onChange={(e) => handleChange('mobile', e.target.value)}
                     placeholder="10-digit mobile number"
                     maxLength={10}
-                    className={`w-full border rounded-xl px-4 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.mobile ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
+                    className={inputCls('mobile')}
                   />
                   {errors.mobile && <p className="text-red-500 text-xs mt-1">{errors.mobile}</p>}
                 </div>
 
-                {/* Address */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Address *</label>
                   <textarea
@@ -272,12 +268,11 @@ export default function BookingModal({ doctor, onClose }) {
                     onChange={(e) => handleChange('address', e.target.value)}
                     placeholder="Village / Town, District"
                     rows={2}
-                    className={`w-full border rounded-xl px-4 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none ${errors.address ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
+                    className={`${inputCls('address')} resize-none`}
                   />
                   {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
                 </div>
 
-                {/* Preferred Month (Eye Camp only) */}
                 {isEyeCamp && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Month *</label>
@@ -311,7 +306,10 @@ export default function BookingModal({ doctor, onClose }) {
                   <button
                     type="submit"
                     disabled={loading}
-                    className={`flex-1 ${isEyeCamp ? 'bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400' : 'bg-blue-700 hover:bg-blue-800 disabled:bg-blue-400'} text-white font-semibold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2`}
+                    className={`flex-1 ${isEyeCamp
+                      ? 'bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400'
+                      : 'bg-clinic-green hover:bg-clinic-green-dark disabled:opacity-60'
+                    } text-white font-semibold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2`}
                   >
                     {loading ? (
                       <>
@@ -332,7 +330,7 @@ export default function BookingModal({ doctor, onClose }) {
           {step === 'success' && (
             <div className="text-center py-4">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-8 h-8 text-clinic-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
@@ -345,7 +343,7 @@ export default function BookingModal({ doctor, onClose }) {
                   : 'Your booking has been successfully registered.'}
               </p>
 
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-left space-y-2 mb-6">
+              <div className="bg-clinic-green-lite border border-clinic-green-soft rounded-xl p-4 text-left space-y-2 mb-6">
                 <Detail label="Doctor" value={doctor.name} />
                 <Detail label="Specialty" value={doctor.specialty} />
                 {isEyeCamp ? (
@@ -374,7 +372,7 @@ export default function BookingModal({ doctor, onClose }) {
 
               <button
                 onClick={onClose}
-                className={`w-full ${isEyeCamp ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-700 hover:bg-blue-800'} text-white font-semibold py-2.5 rounded-xl transition text-sm`}
+                className={`w-full ${isEyeCamp ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-clinic-green hover:bg-clinic-green-dark'} text-white font-semibold py-2.5 rounded-xl transition text-sm`}
               >
                 Done
               </button>
@@ -389,7 +387,7 @@ export default function BookingModal({ doctor, onClose }) {
 function Detail({ label, value }) {
   return (
     <div className="flex gap-2">
-      <span className="text-xs font-semibold text-blue-600 w-20 flex-shrink-0 pt-0.5">{label}</span>
+      <span className="text-xs font-semibold text-clinic-green w-20 flex-shrink-0 pt-0.5">{label}</span>
       <span className="text-sm text-gray-800">{value}</span>
     </div>
   );

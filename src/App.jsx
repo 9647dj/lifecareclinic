@@ -3,11 +3,12 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Home from './pages/Home';
 import Admin from './pages/Admin';
+import CallbackButton from './components/CallbackButton';
 
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen flex flex-col bg-gray-50">
+      <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#F1F8E9' }}>
         <Navbar />
         <div className="flex-1">
           <Routes>
@@ -16,6 +17,7 @@ export default function App() {
           </Routes>
         </div>
         <Footer />
+        <CallbackButton />
       </div>
     </BrowserRouter>
   );

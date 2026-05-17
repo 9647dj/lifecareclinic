@@ -89,7 +89,7 @@ export default function DatePicker({ value, onChange, max, placeholder = 'Select
         ref={triggerRef}
         type="button"
         onClick={openPicker}
-        className={`w-full border rounded-xl px-4 py-2.5 text-sm text-left flex items-center justify-between gap-2 outline-none transition focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${error ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
+        className={`w-full border rounded-xl px-4 py-2.5 text-sm text-left flex items-center justify-between gap-2 outline-none transition focus:ring-2 focus:ring-clinic-green focus:border-clinic-green bg-white ${error ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
       >
         <span className={displayValue ? 'text-gray-800' : 'text-gray-400'}>
           {displayValue || placeholder}
@@ -170,10 +170,10 @@ export default function DatePicker({ value, onChange, max, placeholder = 'Select
                   className={[
                     'flex items-center justify-center text-sm rounded-lg h-8 w-full transition',
                     selected
-                      ? 'bg-blue-600 text-white font-semibold'
+                      ? 'bg-clinic-green text-white font-semibold'
                       : disabled
                       ? 'text-gray-300 cursor-not-allowed'
-                      : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer',
+                      : 'text-gray-700 hover:bg-clinic-green-lite hover:text-clinic-green cursor-pointer',
                   ].join(' ')}
                 >
                   {day}

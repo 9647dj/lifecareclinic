@@ -10,7 +10,7 @@
   }
   body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background-color: #f8fafc;
+    background-color: #F1F8E9;
     color: #1e293b;
   }
 }
@@ -22,4 +22,8 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+}
+
+html {
+  scroll-behavior: smooth;
 }
