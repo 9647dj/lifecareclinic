@@ -5,9 +5,10 @@ CREATE TABLE IF NOT EXISTS appointments (
   doctor_name      TEXT NOT NULL,
   specialty        TEXT NOT NULL,
   patient_name     TEXT NOT NULL,
+  dob              TEXT,
   mobile           TEXT NOT NULL,
   address          TEXT NOT NULL,
-  appointment_date DATE NOT NULL,
+  appointment_date DATE,
   appointment_time TEXT NOT NULL,
   created_at       TIMESTAMPTZ DEFAULT NOW()
 );
@@ -25,3 +26,7 @@ CREATE POLICY "Allow public inserts"
 CREATE POLICY "Allow public reads"
   ON appointments FOR SELECT
   USING (true);
+
+-- If the table already exists, run these to add the new columns:
+-- ALTER TABLE appointments ADD COLUMN IF NOT EXISTS dob TEXT;
+-- ALTER TABLE appointments ALTER COLUMN appointment_date DROP NOT NULL;

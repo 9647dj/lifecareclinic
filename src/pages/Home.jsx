@@ -107,8 +107,10 @@ export default function Home() {
             <h3 className="font-semibold text-blue-900 mb-1">Need help booking?</h3>
             <p className="text-sm text-blue-700">
               You can also call us directly at{' '}
-              <a href="tel:01924467500" className="font-bold underline">01924-467500</a> or{' '}
-              <a href="tel:9906107887" className="font-bold underline">9906107887</a> during clinic hours.
+              <a href="tel:01924467500" className="font-bold underline">01924-467500</a>,{' '}
+              <a href="tel:9906107887" className="font-bold underline">9906107887</a>,{' '}
+              <a href="tel:7780924767" className="font-bold underline">7780924767</a> or{' '}
+              <a href="tel:9070507887" className="font-bold underline">9070507887</a> during clinic hours.
             </p>
           </div>
         </div>

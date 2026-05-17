@@ -13,14 +13,14 @@ export default function HeroSection() {
           Life Care Clinic
         </h1>
         <p className="text-blue-200 text-lg mb-2 font-medium">
-          Jourian, Jammu &mdash; Near State Bank of India
+          Main Road W No 7 Jourian &mdash; Near SBI, J&amp;K 181202
         </p>
         <p className="text-blue-100 text-sm mb-8 max-w-lg mx-auto">
           Quality healthcare with specialist doctors. Book your appointment easily online.
         </p>
 
         {/* Contact cards */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8 flex-wrap">
           <a
             href="tel:01924467500"
             className="flex items-center gap-2 bg-white/15 hover:bg-white/25 transition px-5 py-3 rounded-xl backdrop-blur-sm"
@@ -31,27 +31,30 @@ export default function HeroSection() {
             </svg>
             <span className="font-semibold text-white">01924-467500</span>
           </a>
-          <a
-            href="tel:9906107887"
-            className="flex items-center gap-2 bg-white/15 hover:bg-white/25 transition px-5 py-3 rounded-xl backdrop-blur-sm"
-          >
-            <svg className="w-5 h-5 text-blue-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-            </svg>
-            <span className="font-semibold text-white">9906107887</span>
-          </a>
+          {['9906107887', '7780924767', '9070507887'].map((tel) => (
+            <a
+              key={tel}
+              href={`tel:${tel}`}
+              className="flex items-center gap-2 bg-white/15 hover:bg-white/25 transition px-5 py-3 rounded-xl backdrop-blur-sm"
+            >
+              <svg className="w-5 h-5 text-blue-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              <span className="font-semibold text-white">{tel}</span>
+            </a>
+          ))}
         </div>
 
         {/* Stats row */}
         <div className="flex flex-col sm:flex-row justify-center gap-8 text-center">
           <div>
-            <p className="text-3xl font-bold text-white">6+</p>
+            <p className="text-3xl font-bold text-white">10+</p>
             <p className="text-blue-200 text-sm">Specialist Doctors</p>
           </div>
           <div className="hidden sm:block w-px bg-white/20"></div>
           <div>
-            <p className="text-3xl font-bold text-white">6</p>
+            <p className="text-3xl font-bold text-white">9</p>
             <p className="text-blue-200 text-sm">Specialties</p>
           </div>
           <div className="hidden sm:block w-px bg-white/20"></div>

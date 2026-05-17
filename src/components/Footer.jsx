@@ -28,7 +28,7 @@ export default function Footer() {
                     d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                <span className="text-blue-200">Jourian, Jammu<br />Near State Bank of India</span>
+                <span className="text-blue-200">Main Road W No 7 Jourian<br />Near SBI, Jammu Kashmir 181202</span>
               </div>
               <a href="tel:01924467500" className="flex items-center gap-2 text-blue-200 hover:text-white transition">
                 <svg className="w-4 h-4 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -37,21 +37,27 @@ export default function Footer() {
                 </svg>
                 01924-467500
               </a>
-              <a href="tel:9906107887" className="flex items-center gap-2 text-blue-200 hover:text-white transition">
-                <svg className="w-4 h-4 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-                9906107887
-              </a>
+              {[
+                { tel: '9906107887', display: '9906107887' },
+                { tel: '7780924767', display: '7780924767' },
+                { tel: '9070507887', display: '9070507887' },
+              ].map(({ tel, display }) => (
+                <a key={tel} href={`tel:${tel}`} className="flex items-center gap-2 text-blue-200 hover:text-white transition">
+                  <svg className="w-4 h-4 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  {display}
+                </a>
+              ))}
             </div>
           </div>
 
-          {/* Quick Info */}
+          {/* Specialties */}
           <div>
             <h4 className="text-white font-semibold mb-3">Specialties</h4>
             <div className="flex flex-wrap gap-2">
-              {['Pediatrics', 'Dermatology', 'Orthopaedics', 'ENT', 'Gynaecology', 'Surgery'].map((s) => (
+              {['Paediatrics', 'Orthopaedics', 'Dermatology', 'Cardiology', 'General Medicine', 'ENT', 'Gynaecology', 'Dental', 'Eye Camp'].map((s) => (
                 <span key={s} className="bg-white/10 text-blue-100 text-xs px-2.5 py-1 rounded-full">{s}</span>
               ))}
             </div>
@@ -59,7 +65,7 @@ export default function Footer() {
         </div>
 
         <div className="border-t border-blue-800 mt-8 pt-6 text-center text-xs text-blue-400">
-          &copy; {new Date().getFullYear()} Life Care Clinic, Jourian, Jammu. All rights reserved.
+          &copy; {new Date().getFullYear()} Life Care Clinic, Jourian, Jammu Kashmir. All rights reserved.
         </div>
       </div>
     </footer>
