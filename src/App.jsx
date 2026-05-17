@@ -4,11 +4,12 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import Admin from './pages/Admin';
 import CallbackButton from './components/CallbackButton';
+import WhatsAppButton from './components/WhatsAppButton';
 
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#F1F8E9' }}>
+      <div className="min-h-screen flex flex-col bg-white">
         <Navbar />
         <div className="flex-1">
           <Routes>
@@ -18,6 +19,7 @@ export default function App() {
         </div>
         <Footer />
         <CallbackButton />
+        <WhatsAppButton />
       </div>
     </BrowserRouter>
   );

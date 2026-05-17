@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import emailjs from '@emailjs/browser';
 import { supabase } from '../lib/supabase';
 
@@ -16,6 +16,12 @@ export default function CallbackButton() {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
+
+  useEffect(() => {
+    function handleOpenEvent() { setOpen(true); }
+    document.addEventListener('open-callback', handleOpenEvent);
+    return () => document.removeEventListener('open-callback', handleOpenEvent);
+  }, []);
 
   function handleClose() {
     setOpen(false);

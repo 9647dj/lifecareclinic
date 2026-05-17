@@ -1,23 +1,22 @@
 export default function DoctorCard({ doctor, onBook }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-green-100 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col overflow-hidden group">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col overflow-hidden group">
 
       {/* Colored header */}
-      <div className={`${doctor.lightColor} px-6 pt-7 pb-6 relative overflow-hidden`}>
+      <div className={`${doctor.lightColor} px-6 pt-6 pb-5`}>
         <div className="flex items-start gap-4">
-          <div className={`${doctor.color} w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-base flex-shrink-0 shadow-md`}>
+          {/* Avatar */}
+          <div className={`${doctor.color} w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm`}>
             {doctor.initials}
           </div>
           <div className="flex-1 min-w-0 pt-0.5">
             <h3 className="font-bold text-gray-900 text-base leading-snug">{doctor.name}</h3>
             <p className={`text-sm font-semibold mt-0.5 ${doctor.textColor}`}>{doctor.role || doctor.category}</p>
+            <p className="mt-1.5 text-xs text-gray-500 leading-relaxed italic line-clamp-2">{doctor.specialty}</p>
           </div>
         </div>
-
-        <p className="mt-3 text-xs text-gray-500 leading-relaxed italic">{doctor.specialty}</p>
-
         <div className="mt-3">
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${doctor.badgeColor}`}>
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${doctor.badgeColor}`}>
             {doctor.category}
           </span>
         </div>
@@ -62,7 +61,6 @@ export default function DoctorCard({ doctor, onBook }) {
                 ))
               )}
             </div>
-
             <div className="space-y-1.5">
               {doctor.everyDay ? (
                 <div className="flex items-center gap-2">
@@ -98,13 +96,12 @@ export default function DoctorCard({ doctor, onBook }) {
         )}
       </div>
 
-      {/* Book button */}
+      {/* CTA button */}
       <div className="px-6 pb-6 pt-1">
         {doctor.isEyeCamp ? (
           <button
             onClick={() => onBook(doctor)}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 text-sm flex items-center justify-center gap-2 group-hover:gap-3 shadow-sm hover:shadow-md"
-          >
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 text-sm flex items-center justify-center gap-2 group-hover:gap-3 shadow-sm hover:shadow-md">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -114,13 +111,12 @@ export default function DoctorCard({ doctor, onBook }) {
         ) : (
           <button
             onClick={() => onBook(doctor)}
-            className="w-full bg-clinic-green hover:bg-clinic-green-dark text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 text-sm flex items-center justify-center gap-2 group-hover:gap-3 shadow-sm hover:shadow-md"
-          >
+            className="w-full bg-clinic-green hover:bg-clinic-green-dark text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 text-sm flex items-center justify-center gap-2 group-hover:gap-3 shadow-sm hover:shadow-md">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            Book Appointment
+            Book Now
           </button>
         )}
       </div>
