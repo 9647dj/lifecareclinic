@@ -69,15 +69,15 @@ export default function CallbackButton() {
     }
 
     emailjs.send(
-      'lifecare_service',
-      'template_5x2r40x',
+      import.meta.env.VITE_EMAILJS_SERVICE_ID,
+      import.meta.env.VITE_EMAILJS_CALLBACK_TEMPLATE_ID,
       {
         patient_name: form.name.trim(),
         mobile: form.mobile.trim(),
         preferred_time: form.preferredTime,
         submitted_at: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
       },
-      'NpOFXkRESy0E3-8GA'
+      import.meta.env.VITE_EMAILJS_PUBLIC_KEY
     ).catch(() => {});
 
     setLoading(false);

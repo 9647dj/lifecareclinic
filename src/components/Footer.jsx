@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import logo from '../assets/logo.jpeg';
 
 const PHONES = [
@@ -130,13 +131,17 @@ export default function Footer() {
       <div className="border-t border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-green-400">
           <span>&copy; 2025 Life Care Clinic, Jourian, Jammu Kashmir. All rights reserved.</span>
-          <span className="flex items-center gap-1">
-            Made with
-            <svg className="w-3.5 h-3.5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-            </svg>
-            for Jourian
-          </span>
+          <div className="flex items-center gap-4">
+            <Link to="/staff-login" className="text-green-500 hover:text-green-300 transition-colors">Staff Login</Link>
+            <Link to="/admin-login" className="text-green-500 hover:text-green-300 transition-colors">Admin</Link>
+            <span className="flex items-center gap-1">
+              Made with
+              <svg className="w-3.5 h-3.5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+              </svg>
+              for Jourian
+            </span>
+          </div>
         </div>
       </div>
     </footer>

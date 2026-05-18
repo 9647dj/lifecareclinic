@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { doctors } from '../data/doctors';
 import logo from '../assets/logo.jpeg';
 
 const STATUS_STYLE = {
@@ -9,6 +10,8 @@ const STATUS_STYLE = {
   completed: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
 };
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function fmtDate(str) {
   if (!str) return '—';
@@ -20,7 +23,7 @@ function fmtDateTime(str) {
 }
 
 export default function StaffDashboard() {
-  const { staffLogout, isAdminAuthed } = useAuth();
+  const { staffLogout, isAdminAuthed, getStaffName } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('appointments');
 
@@ -29,7 +32,8 @@ export default function StaffDashboard() {
   const [apptLoading, setApptLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterDoctor, setFilterDoctor] = useState('All');
-  const [filterDate, setFilterDate] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [updatingId, setUpdatingId] = useState(null);
 
@@ -73,8 +77,30 @@ export default function StaffDashboard() {
     navigate('/');
   }
 
+  function clearFilters() {
+    setSearch('');
+    setFilterDoctor('All');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+    setFilterStatus('All');
+  }
+
   const todayStr = new Date().toISOString().split('T')[0];
+  const todayDayName = DAY_NAMES[new Date().getDay()];
   const doctorOptions = ['All', ...new Set(appointments.map((a) => a.doctor_name).filter(Boolean))];
+
+  // KPI computations
+  const visitingToday = doctors.filter(
+    (d) => d.schedule && d.schedule.some((s) => s.day === todayDayName)
+  );
+  const todayAppts = appointments.filter((a) => a.appointment_date === todayStr);
+  const pendingCb = callbacks.filter((c) => c.status === 'pending').length;
+  const patientsPerDoctorToday = todayAppts.reduce((acc, a) => {
+    if (a.doctor_name) acc[a.doctor_name] = (acc[a.doctor_name] || 0) + 1;
+    return acc;
+  }, {});
+
+  const hasFilters = search || filterDoctor !== 'All' || filterDateFrom || filterDateTo || filterStatus !== 'All';
 
   const filteredAppts = appointments.filter((a) => {
     const q = search.toLowerCase();
@@ -84,12 +110,11 @@ export default function StaffDashboard() {
       a.doctor_name?.toLowerCase().includes(q) ||
       a.dob?.includes(q);
     const matchDoctor = filterDoctor === 'All' || a.doctor_name === filterDoctor;
-    const matchDate = !filterDate || a.appointment_date === filterDate;
     const matchStatus = filterStatus === 'All' || (a.status || 'upcoming') === filterStatus;
-    return matchSearch && matchDoctor && matchDate && matchStatus;
+    const matchFrom = !filterDateFrom || a.appointment_date >= filterDateFrom;
+    const matchTo = !filterDateTo || a.appointment_date <= filterDateTo;
+    return matchSearch && matchDoctor && matchStatus && matchFrom && matchTo;
   });
-
-  const pendingCb = callbacks.filter((c) => c.status === 'pending').length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -102,7 +127,10 @@ export default function StaffDashboard() {
             </Link>
             <div>
               <h1 className="font-bold text-gray-900">Staff Dashboard</h1>
-              <p className="text-xs text-gray-500">Life Care Clinic</p>
+              <p className="text-xs text-gray-500">
+                Life Care Clinic
+                {getStaffName() && <span className="ml-1 text-clinic-green">· {getStaffName()}</span>}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -135,12 +163,61 @@ export default function StaffDashboard() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
-        {/* Stats row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          <StatCard label="Total Bookings" value={appointments.length} color="green" />
-          <StatCard label="Today" value={appointments.filter((a) => a.appointment_date === todayStr).length} color="blue" />
-          <StatCard label="Upcoming" value={appointments.filter((a) => (a.status || 'upcoming') === 'upcoming').length} color="purple" />
-          <StatCard label="Callback Pending" value={pendingCb} color="orange" />
+        {/* ── KPI Cards ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+          {/* Visiting Doctors Today */}
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1">Visiting Today</p>
+            <p className="text-3xl font-bold text-blue-700">{visitingToday.length}</p>
+            <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
+              {visitingToday.length === 0 ? (
+                <p className="text-xs text-blue-400">No scheduled visits</p>
+              ) : visitingToday.map((d) => {
+                const slot = d.schedule.find((s) => s.day === todayDayName);
+                return (
+                  <div key={d.id} className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-medium text-blue-800 truncate">{d.name}</span>
+                    {slot && (
+                      <span className="text-xs text-blue-500 whitespace-nowrap flex-shrink-0">
+                        {slot.startTime}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Total Patients Today */}
+          <div className="bg-green-50 border border-green-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-green-500 uppercase tracking-wide mb-1">Patients Today</p>
+            <p className="text-3xl font-bold text-green-700">{todayAppts.length}</p>
+            <p className="text-xs text-green-500 mt-1 opacity-75">appointments booked</p>
+          </div>
+
+          {/* Patients per Doctor Today */}
+          <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-purple-500 uppercase tracking-wide mb-1">By Doctor Today</p>
+            <p className="text-3xl font-bold text-purple-700">{todayAppts.length}</p>
+            <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
+              {Object.keys(patientsPerDoctorToday).length === 0 ? (
+                <p className="text-xs text-purple-400">No appointments today</p>
+              ) : Object.entries(patientsPerDoctorToday).map(([doc, cnt]) => (
+                <div key={doc} className="flex items-center justify-between gap-1">
+                  <span className="text-xs font-medium text-purple-800 truncate">{doc}</span>
+                  <span className="text-xs font-bold text-purple-600 flex-shrink-0">{cnt}p</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Pending Callbacks */}
+          <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-1">Pending Callbacks</p>
+            <p className="text-3xl font-bold text-orange-700">{pendingCb}</p>
+            <p className="text-xs text-orange-500 mt-1 opacity-75">awaiting response</p>
+          </div>
         </div>
 
         {/* ── Appointments tab ── */}
@@ -163,15 +240,26 @@ export default function StaffDashboard() {
                 className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white text-gray-700">
                 {['All', 'upcoming', 'completed', 'cancelled'].map((s) => <option key={s}>{s}</option>)}
               </select>
-              <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)}
-                className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white text-gray-700" />
-              {(search || filterDoctor !== 'All' || filterDate || filterStatus !== 'All') && (
-                <button onClick={() => { setSearch(''); setFilterDoctor('All'); setFilterDate(''); setFilterStatus('All'); }}
+              <div className="flex items-center gap-2">
+                <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
+                  title="From date"
+                  className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white text-gray-700" />
+                <span className="text-gray-400 text-sm">–</span>
+                <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)}
+                  title="To date"
+                  className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white text-gray-700" />
+              </div>
+              {hasFilters && (
+                <button onClick={clearFilters}
                   className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2.5 border border-gray-200 rounded-xl bg-white">
                   Clear
                 </button>
               )}
             </div>
+
+            <p className="text-xs text-gray-400 mb-3">
+              Showing {filteredAppts.length} of {appointments.length} appointments
+            </p>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               {apptLoading ? <Loading text="Loading appointments..." /> : filteredAppts.length === 0 ? (
@@ -241,9 +329,18 @@ export default function StaffDashboard() {
         {activeTab === 'callbacks' && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
-              <StatCard label="Total Requests" value={callbacks.length} color="green" />
-              <StatCard label="Pending" value={pendingCb} color="orange" />
-              <StatCard label="Completed" value={callbacks.filter((c) => c.status === 'done').length} color="blue" />
+              <div className="bg-green-50 border border-green-100 rounded-xl p-4">
+                <p className="text-xs font-semibold text-green-500 uppercase tracking-wide mb-1">Total Requests</p>
+                <p className="text-3xl font-bold text-green-700">{callbacks.length}</p>
+              </div>
+              <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
+                <p className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-1">Pending</p>
+                <p className="text-3xl font-bold text-orange-700">{pendingCb}</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1">Completed</p>
+                <p className="text-3xl font-bold text-blue-700">{callbacks.filter((c) => c.status === 'done').length}</p>
+              </div>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -310,16 +407,6 @@ function TabBtn({ label, count, active, onClick, badge }) {
         </span>
       )}
     </button>
-  );
-}
-
-function StatCard({ label, value, color }) {
-  const palette = { green: 'bg-green-50 text-green-700 border-green-100', blue: 'bg-blue-50 text-blue-700 border-blue-100', purple: 'bg-purple-50 text-purple-700 border-purple-100', orange: 'bg-orange-50 text-orange-700 border-orange-100' };
-  return (
-    <div className={`rounded-xl border p-4 ${palette[color]}`}>
-      <p className="text-2xl font-bold">{value}</p>
-      <p className="text-xs font-medium mt-0.5 opacity-75">{label}</p>
-    </div>
   );
 }
 

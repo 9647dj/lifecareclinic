@@ -4,8 +4,8 @@ import { supabase } from '../lib/supabase';
 const AuthContext = createContext({});
 
 const STAFF_KEY = 'lcc_staff_authed';
-const ADMIN_KEY  = 'lcc_admin_authed';
-const ADMIN_PASSWORD = 'admin@lifecare2024';
+const ADMIN_KEY = 'lcc_admin_authed';
+const STAFF_NAME_KEY = 'lcc_staff_name';
 
 export function AuthProvider({ children }) {
   const [user, setUser]           = useState(null);
@@ -77,22 +77,34 @@ export function AuthProvider({ children }) {
 
   // ── Staff / Admin (session-only, no Supabase auth) ──────────
 
-  async function staffLogin(password) {
+  async function staffLogin(name, password) {
     const { data } = await supabase
-      .from('clinic_settings')
-      .select('value')
-      .eq('key', 'staff_password')
-      .single();
-    if (data?.value === password) {
+      .from('staff_accounts')
+      .select('id, full_name, role')
+      .eq('full_name', name)
+      .eq('password', password)
+      .eq('is_active', true)
+      .eq('role', 'staff')
+      .maybeSingle();
+    if (data) {
       sessionStorage.setItem(STAFF_KEY, '1');
+      sessionStorage.setItem(STAFF_NAME_KEY, data.full_name);
       return true;
     }
     return false;
   }
 
-  function adminLogin(password) {
-    if (password === ADMIN_PASSWORD) {
+  async function adminLogin(password) {
+    const { data } = await supabase
+      .from('staff_accounts')
+      .select('id, full_name')
+      .eq('password', password)
+      .eq('role', 'admin')
+      .eq('is_active', true)
+      .maybeSingle();
+    if (data) {
       sessionStorage.setItem(ADMIN_KEY, '1');
+      sessionStorage.setItem(STAFF_NAME_KEY, data.full_name);
       return true;
     }
     return false;
@@ -101,6 +113,7 @@ export function AuthProvider({ children }) {
   function staffLogout() {
     sessionStorage.removeItem(STAFF_KEY);
     sessionStorage.removeItem(ADMIN_KEY);
+    sessionStorage.removeItem(STAFF_NAME_KEY);
   }
 
   function isStaffAuthed() {
@@ -114,12 +127,16 @@ export function AuthProvider({ children }) {
     return sessionStorage.getItem(ADMIN_KEY) === '1';
   }
 
+  function getStaffName() {
+    return sessionStorage.getItem(STAFF_NAME_KEY) || '';
+  }
+
   return (
     <AuthContext.Provider value={{
       user, profile, authLoading,
       signUp, signIn, signOut, updateProfile, fetchProfile,
       staffLogin, adminLogin, staffLogout,
-      isStaffAuthed, isAdminAuthed,
+      isStaffAuthed, isAdminAuthed, getStaffName,
     }}>
       {children}
     </AuthContext.Provider>

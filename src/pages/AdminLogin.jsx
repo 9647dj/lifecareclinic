@@ -10,12 +10,12 @@ export default function AdminLogin() {
   const { adminLogin } = useAuth();
   const navigate = useNavigate();
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     if (!password) { setError('Password is required'); return; }
     setLoading(true);
     setError('');
-    const ok = adminLogin(password);
+    const ok = await adminLogin(password);
     if (ok) {
       navigate('/admin', { replace: true });
     } else {

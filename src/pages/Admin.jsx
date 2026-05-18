@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { doctors } from '../data/doctors';
 import logo from '../assets/logo.jpeg';
 
 const STATUS_STYLE = {
@@ -9,6 +10,8 @@ const STATUS_STYLE = {
   completed: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
 };
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function fmtDate(str) {
   if (!str) return '—';
@@ -20,7 +23,7 @@ function fmtDateTime(str) {
 }
 
 export default function Admin() {
-  const { staffLogout } = useAuth();
+  const { staffLogout, getStaffName } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('appointments');
 
@@ -33,6 +36,8 @@ export default function Admin() {
   const [sortAsc, setSortAsc] = useState(true);
   const [filterDoctor, setFilterDoctor] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   const [updatingId, setUpdatingId] = useState(null);
 
   // Callbacks
@@ -41,12 +46,21 @@ export default function Admin() {
   const [cbError, setCbError] = useState('');
   const [markingId, setMarkingId] = useState(null);
 
-  // Settings
+  // Manage Staff
+  const [staffAccounts, setStaffAccounts] = useState([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [newStaffName, setNewStaffName] = useState('');
   const [newStaffPw, setNewStaffPw] = useState('');
-  const [pwSaving, setPwSaving] = useState(false);
-  const [pwMsg, setPwMsg] = useState('');
+  const [staffSaving, setStaffSaving] = useState(false);
+  const [staffMsg, setStaffMsg] = useState('');
+  const [changingPwFor, setChangingPwFor] = useState(null);
+  const [inlinePw, setInlinePw] = useState('');
 
   useEffect(() => { fetchAppointments(); fetchCallbacks(); }, []);
+
+  useEffect(() => {
+    if (activeTab === 'staff') fetchStaffAccounts();
+  }, [activeTab]);
 
   async function fetchAppointments() {
     setApptLoading(true);
@@ -66,6 +80,13 @@ export default function Admin() {
     setCbLoading(false);
   }
 
+  async function fetchStaffAccounts() {
+    setStaffLoading(true);
+    const { data } = await supabase.from('staff_accounts').select('*').order('created_at', { ascending: true });
+    setStaffAccounts(data || []);
+    setStaffLoading(false);
+  }
+
   async function updateAppointmentStatus(id, status) {
     setUpdatingId(id);
     await supabase.from('appointments').update({ status }).eq('id', id);
@@ -80,20 +101,52 @@ export default function Admin() {
     setMarkingId(null);
   }
 
-  async function saveStaffPassword(e) {
+  async function createStaffAccount(e) {
     e.preventDefault();
-    if (!newStaffPw.trim()) return;
-    setPwSaving(true);
-    setPwMsg('');
-    const { error } = await supabase.from('clinic_settings').update({ value: newStaffPw.trim() }).eq('key', 'staff_password');
-    setPwMsg(error ? 'Failed to update: ' + error.message : 'Staff password updated successfully!');
-    setPwSaving(false);
-    if (!error) setNewStaffPw('');
+    if (!newStaffName.trim() || !newStaffPw.trim()) return;
+    setStaffSaving(true);
+    setStaffMsg('');
+    const { error } = await supabase.from('staff_accounts').insert({
+      full_name: newStaffName.trim(),
+      password: newStaffPw.trim(),
+      role: 'staff',
+      is_active: true,
+    });
+    if (error) {
+      setStaffMsg('Error: ' + error.message);
+    } else {
+      setStaffMsg('Staff account created successfully!');
+      setNewStaffName('');
+      setNewStaffPw('');
+      fetchStaffAccounts();
+    }
+    setStaffSaving(false);
+  }
+
+  async function toggleStaffActive(id, current) {
+    await supabase.from('staff_accounts').update({ is_active: !current }).eq('id', id);
+    setStaffAccounts((prev) => prev.map((s) => (s.id === id ? { ...s, is_active: !current } : s)));
+  }
+
+  async function saveInlinePassword(id) {
+    if (!inlinePw.trim()) return;
+    await supabase.from('staff_accounts').update({ password: inlinePw.trim() }).eq('id', id);
+    setStaffAccounts((prev) => prev.map((s) => (s.id === id ? { ...s, password: inlinePw.trim() } : s)));
+    setChangingPwFor(null);
+    setInlinePw('');
   }
 
   function handleLogout() {
     staffLogout();
     navigate('/');
+  }
+
+  function clearApptFilters() {
+    setSearch('');
+    setFilterDoctor('All');
+    setFilterStatus('All');
+    setFilterDateFrom('');
+    setFilterDateTo('');
   }
 
   function exportCSV() {
@@ -113,9 +166,20 @@ export default function Admin() {
     URL.revokeObjectURL(url);
   }
 
-  const doctorOptions = ['All', ...new Set(appointments.map((a) => a.doctor_name).filter(Boolean))];
   const todayStr = new Date().toISOString().split('T')[0];
+  const todayDayName = DAY_NAMES[new Date().getDay()];
+  const doctorOptions = ['All', ...new Set(appointments.map((a) => a.doctor_name).filter(Boolean))];
   const pendingCount = callbacks.filter((c) => c.status === 'pending').length;
+
+  // KPI computations
+  const visitingToday = doctors.filter(
+    (d) => d.schedule && d.schedule.some((s) => s.day === todayDayName)
+  );
+  const todayAppts = appointments.filter((a) => a.appointment_date === todayStr);
+  const patientsPerDoctorToday = todayAppts.reduce((acc, a) => {
+    if (a.doctor_name) acc[a.doctor_name] = (acc[a.doctor_name] || 0) + 1;
+    return acc;
+  }, {});
 
   // Analytics
   const bookingsByDoctor = Object.entries(
@@ -132,13 +196,17 @@ export default function Admin() {
     return { label: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), count: bookingsByDay[key] || 0 };
   });
 
+  const hasApptFilters = search || filterDoctor !== 'All' || filterStatus !== 'All' || filterDateFrom || filterDateTo;
+
   const filteredAppts = appointments
     .filter((a) => {
       const q = search.toLowerCase();
       const matchSearch = !q || a.patient_name?.toLowerCase().includes(q) || a.mobile?.includes(q) || a.doctor_name?.toLowerCase().includes(q) || a.address?.toLowerCase().includes(q);
       const matchDoctor = filterDoctor === 'All' || a.doctor_name === filterDoctor;
       const matchStatus = filterStatus === 'All' || (a.status || 'upcoming') === filterStatus;
-      return matchSearch && matchDoctor && matchStatus;
+      const matchFrom = !filterDateFrom || a.appointment_date >= filterDateFrom;
+      const matchTo = !filterDateTo || a.appointment_date <= filterDateTo;
+      return matchSearch && matchDoctor && matchStatus && matchFrom && matchTo;
     })
     .sort((a, b) => {
       const va = a[sortKey] ?? ''; const vb = b[sortKey] ?? '';
@@ -168,7 +236,10 @@ export default function Admin() {
             </Link>
             <div>
               <h1 className="font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="text-xs text-gray-500">Life Care Clinic — Jourian, Jammu Kashmir</p>
+              <p className="text-xs text-gray-500">
+                Life Care Clinic — Jourian, Jammu Kashmir
+                {getStaffName() && <span className="ml-1 text-clinic-green">· {getStaffName()}</span>}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -198,6 +269,7 @@ export default function Admin() {
             <TabBtn label="Appointments" count={appointments.length} active={activeTab === 'appointments'} onClick={() => setActiveTab('appointments')} />
             <TabBtn label="Callbacks" count={pendingCount} badge active={activeTab === 'callbacks'} onClick={() => setActiveTab('callbacks')} />
             <TabBtn label="Analytics" active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} />
+            <TabBtn label="Manage Staff" active={activeTab === 'staff'} onClick={() => setActiveTab('staff')} />
             <TabBtn label="Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
           </div>
         </div>
@@ -205,16 +277,63 @@ export default function Admin() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
+        {/* ── KPI Cards (shown on Appointments + Analytics tabs) ── */}
+        {(activeTab === 'appointments' || activeTab === 'analytics') && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {/* Visiting Doctors Today */}
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+              <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1">Visiting Today</p>
+              <p className="text-3xl font-bold text-blue-700">{visitingToday.length}</p>
+              <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
+                {visitingToday.length === 0 ? (
+                  <p className="text-xs text-blue-400">No scheduled visits</p>
+                ) : visitingToday.map((d) => {
+                  const slot = d.schedule.find((s) => s.day === todayDayName);
+                  return (
+                    <div key={d.id} className="flex items-center justify-between gap-1">
+                      <span className="text-xs font-medium text-blue-800 truncate">{d.name}</span>
+                      {slot && <span className="text-xs text-blue-500 whitespace-nowrap flex-shrink-0">{slot.startTime}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Total Patients Today */}
+            <div className="bg-green-50 border border-green-100 rounded-xl p-4">
+              <p className="text-xs font-semibold text-green-500 uppercase tracking-wide mb-1">Patients Today</p>
+              <p className="text-3xl font-bold text-green-700">{todayAppts.length}</p>
+              <p className="text-xs text-green-500 mt-1 opacity-75">of {appointments.length} total</p>
+            </div>
+
+            {/* Patients per Doctor Today */}
+            <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
+              <p className="text-xs font-semibold text-purple-500 uppercase tracking-wide mb-1">By Doctor Today</p>
+              <p className="text-3xl font-bold text-purple-700">{todayAppts.length}</p>
+              <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
+                {Object.keys(patientsPerDoctorToday).length === 0 ? (
+                  <p className="text-xs text-purple-400">No appointments today</p>
+                ) : Object.entries(patientsPerDoctorToday).map(([doc, cnt]) => (
+                  <div key={doc} className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-medium text-purple-800 truncate">{doc}</span>
+                    <span className="text-xs font-bold text-purple-600 flex-shrink-0">{cnt}p</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Pending Callbacks */}
+            <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
+              <p className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-1">Pending Callbacks</p>
+              <p className="text-3xl font-bold text-orange-700">{pendingCount}</p>
+              <p className="text-xs text-orange-500 mt-1 opacity-75">awaiting response</p>
+            </div>
+          </div>
+        )}
+
         {/* ── APPOINTMENTS ── */}
         {activeTab === 'appointments' && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-              <StatCard label="Total Bookings" value={appointments.length} color="green" />
-              <StatCard label="Today" value={appointments.filter((a) => a.appointment_date === todayStr).length} color="blue" />
-              <StatCard label="Unique Patients" value={new Set(appointments.map((a) => a.mobile)).size} color="purple" />
-              <StatCard label="Doctors" value={new Set(appointments.map((a) => a.doctor_name)).size} color="orange" />
-            </div>
-
             <div className="flex flex-wrap gap-3 mb-5">
               <div className="relative flex-1 min-w-[200px]">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -232,6 +351,21 @@ export default function Admin() {
                 className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white text-gray-700">
                 {['All', 'upcoming', 'completed', 'cancelled'].map((s) => <option key={s}>{s}</option>)}
               </select>
+              <div className="flex items-center gap-2">
+                <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
+                  title="From date"
+                  className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white text-gray-700" />
+                <span className="text-gray-400 text-sm">–</span>
+                <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)}
+                  title="To date"
+                  className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white text-gray-700" />
+              </div>
+              {hasApptFilters && (
+                <button onClick={clearApptFilters}
+                  className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2.5 border border-gray-200 rounded-xl bg-white">
+                  Clear
+                </button>
+              )}
               <button onClick={exportCSV}
                 className="flex items-center gap-2 bg-clinic-green hover:bg-clinic-green-dark text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition whitespace-nowrap">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -240,6 +374,8 @@ export default function Admin() {
                 Export CSV
               </button>
             </div>
+
+            <p className="text-xs text-gray-400 mb-3">Showing {filteredAppts.length} of {appointments.length} appointments</p>
 
             {apptError && <ErrorBox msg={apptError} />}
 
@@ -320,9 +456,18 @@ export default function Admin() {
         {activeTab === 'callbacks' && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
-              <StatCard label="Total Requests" value={callbacks.length} color="green" />
-              <StatCard label="Pending" value={pendingCount} color="orange" />
-              <StatCard label="Completed" value={callbacks.filter((c) => c.status === 'done').length} color="blue" />
+              <div className="bg-green-50 border border-green-100 rounded-xl p-4">
+                <p className="text-xs font-semibold text-green-500 uppercase tracking-wide mb-1">Total Requests</p>
+                <p className="text-3xl font-bold text-green-700">{callbacks.length}</p>
+              </div>
+              <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
+                <p className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-1">Pending</p>
+                <p className="text-3xl font-bold text-orange-700">{pendingCount}</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1">Completed</p>
+                <p className="text-3xl font-bold text-blue-700">{callbacks.filter((c) => c.status === 'done').length}</p>
+              </div>
             </div>
 
             {cbError && <ErrorBox msg={cbError} />}
@@ -377,14 +522,6 @@ export default function Admin() {
         {/* ── ANALYTICS ── */}
         {activeTab === 'analytics' && (
           <div className="space-y-6">
-            {/* KPIs */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <StatCard label="Total Bookings" value={appointments.length} color="green" />
-              <StatCard label="Completed" value={appointments.filter((a) => a.status === 'completed').length} color="blue" />
-              <StatCard label="Cancelled" value={appointments.filter((a) => a.status === 'cancelled').length} color="orange" />
-              <StatCard label="Pending Callbacks" value={pendingCount} color="purple" />
-            </div>
-
             {/* Last 7 days bar */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <h3 className="font-bold text-gray-900 mb-4">Appointments — Last 7 Days</h3>
@@ -407,7 +544,16 @@ export default function Admin() {
 
             {/* Popular doctors */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-              <h3 className="font-bold text-gray-900 mb-4">Bookings by Doctor</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-900">Bookings by Doctor</h3>
+                <button onClick={exportCSV}
+                  className="flex items-center gap-2 text-sm font-semibold text-clinic-green hover:text-clinic-green-dark">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Export CSV
+                </button>
+              </div>
               {bookingsByDoctor.length === 0 ? (
                 <p className="text-sm text-gray-400">No data yet</p>
               ) : (
@@ -431,36 +577,154 @@ export default function Admin() {
           </div>
         )}
 
-        {/* ── SETTINGS ── */}
-        {activeTab === 'settings' && (
-          <div className="max-w-lg space-y-6">
-            {/* Change staff password */}
+        {/* ── MANAGE STAFF ── */}
+        {activeTab === 'staff' && (
+          <div className="space-y-6">
+            {/* Create new staff account */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-              <h3 className="font-bold text-gray-900 mb-1">Staff Password</h3>
-              <p className="text-sm text-gray-500 mb-5">Change the password used by staff to log in</p>
+              <h3 className="font-bold text-gray-900 mb-1">Create Staff Account</h3>
+              <p className="text-sm text-gray-500 mb-5">Add a new staff login with name and password</p>
 
-              {pwMsg && (
-                <div className={`text-sm rounded-xl px-4 py-3 mb-4 ${pwMsg.startsWith('Failed') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-green-50 border border-green-200 text-green-700'}`}>
-                  {pwMsg}
+              {staffMsg && (
+                <div className={`text-sm rounded-xl px-4 py-3 mb-4 ${staffMsg.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-green-50 border border-green-200 text-green-700'}`}>
+                  {staffMsg}
                 </div>
               )}
 
-              <form onSubmit={saveStaffPassword} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">New Staff Password</label>
+              <form onSubmit={createStaffAccount} className="flex flex-wrap gap-3 items-end">
+                <div className="flex-1 min-w-[180px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={newStaffName}
+                    onChange={(e) => { setNewStaffName(e.target.value); setStaffMsg(''); }}
+                    placeholder="e.g. Priya Sharma"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green"
+                  />
+                </div>
+                <div className="flex-1 min-w-[180px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
                   <input
                     type="text"
                     value={newStaffPw}
-                    onChange={(e) => { setNewStaffPw(e.target.value); setPwMsg(''); }}
-                    placeholder="Enter new password"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-clinic-green focus:border-clinic-green"
+                    onChange={(e) => { setNewStaffPw(e.target.value); setStaffMsg(''); }}
+                    placeholder="Set a password"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green"
                   />
                 </div>
-                <button type="submit" disabled={pwSaving || !newStaffPw.trim()}
-                  className="bg-clinic-green hover:bg-clinic-green-dark disabled:opacity-60 text-white font-semibold py-2.5 px-6 rounded-xl transition text-sm">
-                  {pwSaving ? 'Saving...' : 'Update Password'}
+                <button type="submit" disabled={staffSaving || !newStaffName.trim() || !newStaffPw.trim()}
+                  className="bg-clinic-green hover:bg-clinic-green-dark disabled:opacity-60 text-white font-semibold py-2.5 px-6 rounded-xl transition text-sm whitespace-nowrap">
+                  {staffSaving ? 'Creating...' : '+ Create Account'}
                 </button>
               </form>
+            </div>
+
+            {/* Staff accounts list */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-gray-900">Staff Accounts</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{staffAccounts.length} account{staffAccounts.length !== 1 ? 's' : ''} total</p>
+                </div>
+                <button onClick={fetchStaffAccounts} disabled={staffLoading}
+                  className="text-sm text-clinic-green hover:text-clinic-green-dark font-semibold disabled:opacity-50">
+                  Refresh
+                </button>
+              </div>
+
+              {staffLoading ? <Loading text="Loading staff accounts..." /> : staffAccounts.length === 0 ? (
+                <Empty text="No staff accounts found" />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100">
+                        {['Name', 'Role', 'Status', 'Actions'].map((h) => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {staffAccounts.map((staff) => (
+                        <tr key={staff.id} className={`transition-colors ${staff.is_active ? 'hover:bg-gray-50' : 'bg-gray-50/50 opacity-60'}`}>
+                          <td className="px-4 py-3">
+                            <p className="font-semibold text-gray-800">{staff.full_name}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">Added {fmtDate(staff.created_at)}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${staff.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                              {staff.role}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${staff.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {staff.is_active ? 'Active' : 'Disabled'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {/* Change password inline */}
+                              {changingPwFor === staff.id ? (
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={inlinePw}
+                                    onChange={(e) => setInlinePw(e.target.value)}
+                                    placeholder="New password"
+                                    className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs w-28 outline-none focus:ring-1 focus:ring-clinic-green"
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => saveInlinePassword(staff.id)}
+                                    disabled={!inlinePw.trim()}
+                                    className="text-xs bg-clinic-green disabled:opacity-50 text-white px-2.5 py-1 rounded-lg font-semibold transition">
+                                    Save
+                                  </button>
+                                  <button onClick={() => { setChangingPwFor(null); setInlinePw(''); }}
+                                    className="text-xs text-gray-400 hover:text-gray-600">
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { setChangingPwFor(staff.id); setInlinePw(''); }}
+                                  className="text-xs text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap">
+                                  Change Password
+                                </button>
+                              )}
+
+                              {/* Enable / Disable */}
+                              {staff.role !== 'admin' && (
+                                <button
+                                  onClick={() => toggleStaffActive(staff.id, staff.is_active)}
+                                  className={`text-xs font-medium whitespace-nowrap ${staff.is_active ? 'text-red-500 hover:text-red-600' : 'text-green-600 hover:text-green-700'}`}>
+                                  {staff.is_active ? 'Disable' : 'Enable'}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── SETTINGS ── */}
+        {activeTab === 'settings' && (
+          <div className="max-w-lg space-y-6">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+              <h3 className="font-bold text-gray-900 mb-1">Staff Accounts</h3>
+              <p className="text-sm text-gray-500 mb-5">
+                Manage staff logins from the{' '}
+                <button onClick={() => setActiveTab('staff')} className="text-clinic-green font-semibold hover:underline">
+                  Manage Staff
+                </button>{' '}
+                tab. Create, enable/disable, and change passwords there.
+              </p>
             </div>
 
             {/* Export */}
@@ -493,16 +757,6 @@ function TabBtn({ label, count, active, onClick, badge }) {
         </span>
       )}
     </button>
-  );
-}
-
-function StatCard({ label, value, color }) {
-  const palette = { green: 'bg-green-50 text-green-700 border-green-100', blue: 'bg-blue-50 text-blue-700 border-blue-100', purple: 'bg-purple-50 text-purple-700 border-purple-100', orange: 'bg-orange-50 text-orange-700 border-orange-100' };
-  return (
-    <div className={`rounded-xl border p-4 ${palette[color]}`}>
-      <p className="text-2xl font-bold">{value}</p>
-      <p className="text-xs font-medium mt-0.5 opacity-75">{label}</p>
-    </div>
   );
 }
 

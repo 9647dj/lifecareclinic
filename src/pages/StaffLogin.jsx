@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import logo from '../assets/logo.jpeg';
 
 export default function StaffLogin() {
+  const [name, setName]         = useState('');
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
@@ -12,14 +13,15 @@ export default function StaffLogin() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!password) { setError('Password is required'); return; }
+    if (!name.trim()) { setError('Please enter your full name'); return; }
+    if (!password)    { setError('Password is required'); return; }
     setLoading(true);
     setError('');
-    const ok = await staffLogin(password);
+    const ok = await staffLogin(name.trim(), password);
     if (ok) {
       navigate('/staff-dashboard', { replace: true });
     } else {
-      setError('Incorrect password. Please try again.');
+      setError('Incorrect name or password. Please try again.');
     }
     setLoading(false);
   }
@@ -40,7 +42,7 @@ export default function StaffLogin() {
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h2 className="font-bold text-gray-900 text-lg mb-1">Staff Login</h2>
-          <p className="text-sm text-gray-500 mb-5">Enter your staff password to continue</p>
+          <p className="text-sm text-gray-500 mb-5">Sign in with your staff credentials</p>
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-4">
@@ -50,14 +52,24 @@ export default function StaffLogin() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Staff Password</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => { setName(e.target.value); setError(''); }}
+                placeholder="Enter your full name"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-clinic-green focus:border-clinic-green bg-white"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(''); }}
                 placeholder="Enter password"
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-clinic-green focus:border-clinic-green bg-white"
-                autoFocus
               />
             </div>
             <button

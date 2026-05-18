@@ -5,9 +5,9 @@ import { getAvailableDates } from '../data/doctors';
 import DatePicker from './DatePicker';
 import { useAuth } from '../context/AuthContext';
 
-const EMAILJS_SERVICE_ID = 'lifecare_service';
-const EMAILJS_TEMPLATE_ID = 'template_hwkyqoo';
-const EMAILJS_PUBLIC_KEY = 'NpOFXkRESy0E3-8GA';
+const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+const EMAILJS_PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
 export default function BookingModal({ doctor, onClose }) {
   const isEyeCamp = !!doctor.isEyeCamp;

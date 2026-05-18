@@ -99,6 +99,10 @@ export default function Navbar() {
                   {link.label}
                 </a>
               ))}
+              <Link to="/staff-login"
+                className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-all duration-200">
+                Staff
+              </Link>
               {isHome ? (
                 <Link to="/admin"
                   className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-all duration-200">
@@ -227,6 +231,10 @@ export default function Navbar() {
                   Patient Login / Register
                 </Link>
               )}
+              <Link to="/staff-login" onClick={() => setMenuOpen(false)}
+                className="block text-center border border-gray-200 text-gray-500 font-medium py-2.5 rounded-xl text-sm mt-1 hover:bg-gray-50 transition-colors">
+                Staff Login
+              </Link>
               {isHome ? (
                 <Link to="/admin" onClick={() => setMenuOpen(false)}
                   className="block text-center border border-gray-200 text-gray-400 font-medium py-2.5 rounded-xl text-sm mt-1 hover:bg-gray-50 transition-colors">
