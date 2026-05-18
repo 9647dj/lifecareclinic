@@ -17,7 +17,7 @@ export default function BookingModal({ doctor, onClose }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
 
   useEffect(() => {
     if (profile) {
@@ -69,7 +69,6 @@ export default function BookingModal({ doctor, onClose }) {
           address: form.address.trim(),
           appointment_date: null,
           appointment_time: `Preferred Month: ${form.preferredMonth.trim()}`,
-          user_id: user?.id ?? null,
           status: 'upcoming',
         }
       : {
@@ -81,7 +80,6 @@ export default function BookingModal({ doctor, onClose }) {
           address: form.address.trim(),
           appointment_date: selectedDate.date.toISOString().split('T')[0],
           appointment_time: selectedDate.timeDisplay,
-          user_id: user?.id ?? null,
           status: 'upcoming',
         };
 
