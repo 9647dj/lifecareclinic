@@ -13,10 +13,11 @@ export default function BookingModal({ doctor, onClose }) {
   const isEyeCamp = !!doctor.isEyeCamp;
   const [step, setStep] = useState(isEyeCamp ? 'form' : 'dates');
   const [selectedDate, setSelectedDate] = useState(null);
-  const [form, setForm] = useState({ name: '', dob: '', mobile: '', address: '', preferredMonth: '' });
+  const [form, setForm] = useState({ name: '', dob: '', mobile: '', address: '', email: '', preferredMonth: '' });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [blockedDates, setBlockedDates] = useState(new Set());
   const { user, profile } = useAuth();
 
   useEffect(() => {
@@ -31,7 +32,16 @@ export default function BookingModal({ doctor, onClose }) {
     }
   }, [profile]);
 
-  const availableDates = isEyeCamp ? [] : getAvailableDates(doctor.schedule);
+  useEffect(() => {
+    supabase.from('blocked_dates').select('blocked_date').then(({ data }) => {
+      if (data) setBlockedDates(new Set(data.map((r) => r.blocked_date)));
+    });
+  }, []);
+
+  const allDates = isEyeCamp ? [] : getAvailableDates(doctor.schedule);
+  const availableDates = allDates.filter(
+    (slot) => !blockedDates.has(slot.date.toISOString().split('T')[0])
+  );
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -46,7 +56,39 @@ export default function BookingModal({ doctor, onClose }) {
     else if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) e.mobile = 'Enter a valid 10-digit mobile number';
     if (!form.address.trim()) e.address = 'Address is required';
     if (isEyeCamp && !form.preferredMonth.trim()) e.preferredMonth = 'Preferred month is required';
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = 'Enter a valid email address';
     return e;
+  }
+
+  async function upsertPatient() {
+    try {
+      const { data: existing } = await supabase
+        .from('patients')
+        .select('id, total_visits')
+        .eq('mobile', form.mobile.trim())
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from('patients').update({
+          total_visits: (existing.total_visits || 0) + 1,
+          last_visit_at: new Date().toISOString(),
+          name: form.name.trim(),
+          address: form.address.trim(),
+          ...(form.email.trim() && { email: form.email.trim() }),
+        }).eq('id', existing.id);
+      } else {
+        await supabase.from('patients').insert({
+          name: form.name.trim(),
+          mobile: form.mobile.trim(),
+          dob: form.dob.trim() || null,
+          address: form.address.trim(),
+          email: form.email.trim() || null,
+          total_visits: 1,
+        });
+      }
+    } catch (_) {
+      // patient upsert is best-effort; don't block booking flow
+    }
   }
 
   async function handleSubmit(e) {
@@ -64,25 +106,31 @@ export default function BookingModal({ doctor, onClose }) {
           patient_name: form.name.trim(),
           mobile: form.mobile.trim(),
           address: form.address.trim(),
+          email: form.email.trim() || null,
           doctor_name: doctor.name,
           specialty: doctor.specialty,
+          category: doctor.category || null,
           appointment_date: null,
           appointment_time: `Preferred Month: ${form.preferredMonth.trim()}`,
           dob: null,
           user_id: user?.id ?? null,
           status: 'upcoming',
+          booking_channel: 'website',
         }
       : {
           patient_name: form.name.trim(),
           mobile: form.mobile.trim(),
           address: form.address.trim(),
+          email: form.email.trim() || null,
           doctor_name: doctor.name,
           specialty: doctor.specialty,
+          category: doctor.category || null,
           appointment_date: selectedDate.date.toISOString().split('T')[0],
           appointment_time: selectedDate.timeDisplay,
           dob: form.dob.trim(),
           user_id: user?.id ?? null,
           status: 'upcoming',
+          booking_channel: 'website',
         };
 
     const { error } = await supabase.from('appointments').insert([payload]);
@@ -93,6 +141,9 @@ export default function BookingModal({ doctor, onClose }) {
       setApiError(`Booking failed: ${error.message}`);
       return;
     }
+
+    // Best-effort patient record upsert
+    await upsertPatient();
 
     emailjs.send(
       EMAILJS_SERVICE_ID,
@@ -290,6 +341,20 @@ export default function BookingModal({ doctor, onClose }) {
                     className={`${inputCls('address')} resize-none`}
                   />
                   {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email <span className="text-gray-400 font-normal">(optional — for appointment reminders)</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    placeholder="patient@example.com"
+                    className={inputCls('email')}
+                  />
+                  {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
                 </div>
 
                 {isEyeCamp && (

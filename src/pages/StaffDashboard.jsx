@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { doctors } from '../data/doctors';
+import { useDoctors } from '../hooks/useDoctors';
 import logo from '../assets/logo.jpeg';
 
 const STATUS_STYLE = {
@@ -26,6 +26,7 @@ export default function StaffDashboard() {
   const { staffLogout, isAdminAuthed, getStaffName } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('appointments');
+  const { doctors } = useDoctors();
 
   // Appointments
   const [appointments, setAppointments] = useState([]);
@@ -100,6 +101,15 @@ export default function StaffDashboard() {
     return acc;
   }, {});
 
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  const newThisWeek = new Set(
+    appointments
+      .filter((a) => a.created_at && new Date(a.created_at) >= oneWeekAgo)
+      .map((a) => a.mobile)
+      .filter(Boolean)
+  ).size;
+
   const hasFilters = search || filterDoctor !== 'All' || filterDateFrom || filterDateTo || filterStatus !== 'All';
 
   const filteredAppts = appointments.filter((a) => {
@@ -164,7 +174,7 @@ export default function StaffDashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
         {/* ── KPI Cards ── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
 
           {/* Visiting Doctors Today */}
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
@@ -218,6 +228,13 @@ export default function StaffDashboard() {
             <p className="text-3xl font-bold text-orange-700">{pendingCb}</p>
             <p className="text-xs text-orange-500 mt-1 opacity-75">awaiting response</p>
           </div>
+
+          {/* New Patients This Week */}
+          <div className="bg-teal-50 border border-teal-100 rounded-xl p-4">
+            <p className="text-xs font-semibold text-teal-500 uppercase tracking-wide mb-1">New This Week</p>
+            <p className="text-3xl font-bold text-teal-700">{newThisWeek}</p>
+            <p className="text-xs text-teal-500 mt-1 opacity-75">unique patients (7d)</p>
+          </div>
         </div>
 
         {/* ── Appointments tab ── */}
@@ -269,7 +286,7 @@ export default function StaffDashboard() {
                   <table className="min-w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-100">
-                        {['Doctor', 'Patient', 'DOB', 'Mobile', 'Date', 'Time', 'Status', 'Actions'].map((h) => (
+                        {['Doctor', 'Category', 'Patient', 'DOB', 'Mobile', 'Date', 'Time', 'Channel', 'Status', 'Actions'].map((h) => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -283,6 +300,7 @@ export default function StaffDashboard() {
                               <p className="font-semibold text-gray-800 whitespace-nowrap">{apt.doctor_name}</p>
                               <p className="text-xs text-gray-400">{apt.specialty}</p>
                             </td>
+                            <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{apt.category || '—'}</td>
                             <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{apt.patient_name}</td>
                             <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{fmtDate(apt.dob)}</td>
                             <td className="px-4 py-3">
@@ -290,6 +308,11 @@ export default function StaffDashboard() {
                             </td>
                             <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtDate(apt.appointment_date)}</td>
                             <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{apt.appointment_time}</td>
+                            <td className="px-4 py-3">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 capitalize">
+                                {apt.booking_channel || 'website'}
+                              </span>
+                            </td>
                             <td className="px-4 py-3">
                               <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_STYLE[status] || STATUS_STYLE.upcoming}`}>
                                 {status}

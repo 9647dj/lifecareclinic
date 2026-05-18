@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import emailjs from '@emailjs/browser';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { doctors } from '../data/doctors';
+import { mapDoctorRow } from '../hooks/useDoctors';
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis,
+  CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts';
 import logo from '../assets/logo.jpeg';
 
 const STATUS_STYLE = {
@@ -12,6 +17,21 @@ const STATUS_STYLE = {
 };
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WEEKDAYS  = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+const COLOR_THEMES = [
+  { label: 'Green',  color: 'bg-green-600',  light: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-700',  badge: 'bg-green-100 text-green-700' },
+  { label: 'Blue',   color: 'bg-blue-500',   light: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-700',   badge: 'bg-blue-100 text-blue-700' },
+  { label: 'Orange', color: 'bg-orange-500', light: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-700' },
+  { label: 'Purple', color: 'bg-purple-500', light: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700' },
+  { label: 'Red',    color: 'bg-red-600',    light: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-700',    badge: 'bg-red-100 text-red-700' },
+  { label: 'Teal',   color: 'bg-teal-600',   light: 'bg-teal-50',   border: 'border-teal-200',   text: 'text-teal-700',   badge: 'bg-teal-100 text-teal-700' },
+  { label: 'Pink',   color: 'bg-pink-500',   light: 'bg-pink-50',   border: 'border-pink-200',   text: 'text-pink-700',   badge: 'bg-pink-100 text-pink-700' },
+  { label: 'Cyan',   color: 'bg-cyan-600',   light: 'bg-cyan-50',   border: 'border-cyan-200',   text: 'text-cyan-700',   badge: 'bg-cyan-100 text-cyan-700' },
+  { label: 'Indigo', color: 'bg-indigo-600', light: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', badge: 'bg-indigo-100 text-indigo-700' },
+];
+
+const EMPTY_DOC_FORM = { name: '', specialty: '', role: '', category: '', initials: '', themeIdx: 0, is_eye_camp: false, every_day: false, is_active: true, order_index: 0 };
 
 function fmtDate(str) {
   if (!str) return '—';
@@ -27,7 +47,7 @@ export default function Admin() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('appointments');
 
-  // Appointments
+  // ── Appointments ──
   const [appointments, setAppointments] = useState([]);
   const [apptLoading, setApptLoading] = useState(true);
   const [apptError, setApptError] = useState('');
@@ -40,13 +60,39 @@ export default function Admin() {
   const [filterDateTo, setFilterDateTo] = useState('');
   const [updatingId, setUpdatingId] = useState(null);
 
-  // Callbacks
+  // ── Callbacks ──
   const [callbacks, setCallbacks] = useState([]);
   const [cbLoading, setCbLoading] = useState(true);
   const [cbError, setCbError] = useState('');
   const [markingId, setMarkingId] = useState(null);
 
-  // Manage Staff
+  // ── Doctors ──
+  const [dbDoctors, setDbDoctors] = useState([]);
+  const [doctorsLoading, setDoctorsLoading] = useState(false);
+  const [showDoctorForm, setShowDoctorForm] = useState(false);
+  const [editingDoctorId, setEditingDoctorId] = useState(null);
+  const [doctorForm, setDoctorForm] = useState(EMPTY_DOC_FORM);
+  const [scheduleRows, setScheduleRows] = useState([{ day: 'Monday', startTime: '', endTime: '' }]);
+  const [doctorSaving, setDoctorSaving] = useState(false);
+  const [doctorMsg, setDoctorMsg] = useState('');
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
+  // ── Blocked Dates ──
+  const [blockedDates, setBlockedDates] = useState([]);
+  const [newBlockDate, setNewBlockDate] = useState('');
+  const [newBlockReason, setNewBlockReason] = useState('');
+  const [blockSaving, setBlockSaving] = useState(false);
+
+  // ── Notify Patients ──
+  const [notifyDoctor, setNotifyDoctor] = useState('');
+  const [notifyDate, setNotifyDate] = useState('');
+  const [notifyMessage, setNotifyMessage] = useState('');
+  const [notifyPatients, setNotifyPatients] = useState([]);
+  const [notifyLoading, setNotifyLoading] = useState(false);
+  const [notifySending, setNotifySending] = useState(false);
+  const [notifyResult, setNotifyResult] = useState('');
+
+  // ── Manage Staff ──
   const [staffAccounts, setStaffAccounts] = useState([]);
   const [staffLoading, setStaffLoading] = useState(false);
   const [newStaffName, setNewStaffName] = useState('');
@@ -56,15 +102,20 @@ export default function Admin() {
   const [changingPwFor, setChangingPwFor] = useState(null);
   const [inlinePw, setInlinePw] = useState('');
 
-  useEffect(() => { fetchAppointments(); fetchCallbacks(); }, []);
+  useEffect(() => {
+    fetchAppointments();
+    fetchCallbacks();
+    fetchDoctors();
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'staff') fetchStaffAccounts();
+    if (activeTab === 'blocked') fetchBlockedDates();
   }, [activeTab]);
 
+  // ── Fetch functions ──
   async function fetchAppointments() {
-    setApptLoading(true);
-    setApptError('');
+    setApptLoading(true); setApptError('');
     const { data, error } = await supabase.from('appointments').select('*').order('created_at', { ascending: false });
     if (error) setApptError('Failed to load: ' + error.message);
     else setAppointments(data || []);
@@ -72,21 +123,33 @@ export default function Admin() {
   }
 
   async function fetchCallbacks() {
-    setCbLoading(true);
-    setCbError('');
+    setCbLoading(true); setCbError('');
     const { data, error } = await supabase.from('callbacks').select('*').order('created_at', { ascending: false });
     if (error) setCbError('Failed to load: ' + error.message);
     else setCallbacks(data || []);
     setCbLoading(false);
   }
 
+  async function fetchDoctors() {
+    setDoctorsLoading(true);
+    const { data } = await supabase.from('doctors').select('*').order('order_index');
+    setDbDoctors((data || []).map(mapDoctorRow));
+    setDoctorsLoading(false);
+  }
+
+  async function fetchBlockedDates() {
+    const { data } = await supabase.from('blocked_dates').select('*').order('blocked_date');
+    setBlockedDates(data || []);
+  }
+
   async function fetchStaffAccounts() {
     setStaffLoading(true);
-    const { data } = await supabase.from('staff_accounts').select('*').order('created_at', { ascending: true });
+    const { data } = await supabase.from('staff_accounts').select('*').order('created_at');
     setStaffAccounts(data || []);
     setStaffLoading(false);
   }
 
+  // ── Appointment actions ──
   async function updateAppointmentStatus(id, status) {
     setUpdatingId(id);
     await supabase.from('appointments').update({ status }).eq('id', id);
@@ -101,25 +164,158 @@ export default function Admin() {
     setMarkingId(null);
   }
 
+  // ── Doctor CRUD ──
+  function startAddDoctor() {
+    setDoctorForm(EMPTY_DOC_FORM);
+    setScheduleRows([{ day: 'Monday', startTime: '', endTime: '' }]);
+    setEditingDoctorId(null);
+    setDoctorMsg('');
+    setShowDoctorForm(true);
+  }
+
+  function startEditDoctor(doc) {
+    const themeIdx = COLOR_THEMES.findIndex((t) => t.color === doc.color);
+    setDoctorForm({
+      name: doc.name || '',
+      specialty: doc.specialty || '',
+      role: doc.role || '',
+      category: doc.category || '',
+      initials: doc.initials || '',
+      themeIdx: themeIdx >= 0 ? themeIdx : 0,
+      is_eye_camp: !!doc.isEyeCamp,
+      every_day: !!doc.everyDay,
+      is_active: doc.is_active !== false,
+      order_index: doc.order_index || 0,
+    });
+    setScheduleRows(
+      doc.schedule?.length
+        ? doc.schedule.map((s) => ({ day: s.day, startTime: s.startTime, endTime: s.endTime || '' }))
+        : [{ day: 'Monday', startTime: '', endTime: '' }]
+    );
+    setEditingDoctorId(doc.id);
+    setDoctorMsg('');
+    setShowDoctorForm(true);
+  }
+
+  async function saveDoctor() {
+    if (!doctorForm.name.trim()) { setDoctorMsg('Doctor name is required'); return; }
+    setDoctorSaving(true); setDoctorMsg('');
+    const theme = COLOR_THEMES[doctorForm.themeIdx] || COLOR_THEMES[0];
+    const payload = {
+      name: doctorForm.name.trim(),
+      specialty: doctorForm.specialty.trim(),
+      role: doctorForm.role.trim(),
+      category: doctorForm.category.trim(),
+      initials: doctorForm.initials.trim(),
+      color: theme.color,
+      light_color: theme.light,
+      border_color: theme.border,
+      text_color: theme.text,
+      badge_color: theme.badge,
+      schedule: doctorForm.is_eye_camp ? [] : scheduleRows.filter((r) => r.day && r.startTime),
+      is_eye_camp: doctorForm.is_eye_camp,
+      every_day: doctorForm.every_day,
+      is_active: doctorForm.is_active,
+      order_index: parseInt(doctorForm.order_index) || 0,
+    };
+    const { error } = editingDoctorId
+      ? await supabase.from('doctors').update(payload).eq('id', editingDoctorId)
+      : await supabase.from('doctors').insert(payload);
+    if (error) {
+      setDoctorMsg('Error: ' + error.message);
+    } else {
+      setShowDoctorForm(false);
+      fetchDoctors();
+    }
+    setDoctorSaving(false);
+  }
+
+  async function deleteDoctor(id) {
+    await supabase.from('doctors').delete().eq('id', id);
+    setDeleteConfirmId(null);
+    fetchDoctors();
+  }
+
+  async function toggleDoctorActive(doc) {
+    await supabase.from('doctors').update({ is_active: !doc.is_active }).eq('id', doc.id);
+    fetchDoctors();
+  }
+
+  // ── Blocked dates ──
+  async function addBlockedDate() {
+    if (!newBlockDate) return;
+    setBlockSaving(true);
+    await supabase.from('blocked_dates').insert({
+      blocked_date: newBlockDate,
+      reason: newBlockReason.trim() || null,
+      created_by: getStaffName(),
+    });
+    setNewBlockDate(''); setNewBlockReason('');
+    setBlockSaving(false);
+    fetchBlockedDates();
+  }
+
+  async function removeBlockedDate(id) {
+    await supabase.from('blocked_dates').delete().eq('id', id);
+    setBlockedDates((prev) => prev.filter((d) => d.id !== id));
+  }
+
+  // ── Notify Patients ──
+  async function loadPatientsForNotification() {
+    if (!notifyDoctor || !notifyDate) return;
+    setNotifyLoading(true); setNotifyResult('');
+    const { data } = await supabase.from('appointments')
+      .select('patient_name, mobile, email, appointment_time')
+      .eq('doctor_name', notifyDoctor)
+      .eq('appointment_date', notifyDate)
+      .neq('status', 'cancelled');
+    setNotifyPatients(data || []);
+    setNotifyLoading(false);
+  }
+
+  async function sendNotifications() {
+    const patientsWithEmail = notifyPatients.filter((p) => p.email);
+    if (patientsWithEmail.length === 0) {
+      setNotifyResult('No patients with email addresses found for this slot.');
+      return;
+    }
+    setNotifySending(true); setNotifyResult('');
+    for (const p of patientsWithEmail) {
+      await emailjs.send(
+        import.meta.env.VITE_EMAILJS_SERVICE_ID,
+        import.meta.env.VITE_EMAILJS_NOTIFICATION_TEMPLATE_ID,
+        {
+          to_email: p.email,
+          patient_name: p.patient_name,
+          doctor_name: notifyDoctor,
+          appointment_date: notifyDate,
+          appointment_time: p.appointment_time,
+          message: notifyMessage,
+        },
+        import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+      ).catch(() => {});
+    }
+    await supabase.from('notification_logs').insert({
+      doctor_name: notifyDoctor,
+      appointment_date: notifyDate,
+      recipients_count: patientsWithEmail.length,
+      template_message: notifyMessage,
+      sent_by: getStaffName(),
+    });
+    setNotifyResult(`Sent to ${patientsWithEmail.length} patient${patientsWithEmail.length !== 1 ? 's' : ''} with email (${notifyPatients.length} total booked).`);
+    setNotifySending(false);
+  }
+
+  // ── Staff management ──
   async function createStaffAccount(e) {
     e.preventDefault();
     if (!newStaffName.trim() || !newStaffPw.trim()) return;
-    setStaffSaving(true);
-    setStaffMsg('');
+    setStaffSaving(true); setStaffMsg('');
     const { error } = await supabase.from('staff_accounts').insert({
-      full_name: newStaffName.trim(),
-      password: newStaffPw.trim(),
-      role: 'staff',
-      is_active: true,
+      full_name: newStaffName.trim(), password: newStaffPw.trim(), role: 'staff', is_active: true,
     });
-    if (error) {
-      setStaffMsg('Error: ' + error.message);
-    } else {
-      setStaffMsg('Staff account created successfully!');
-      setNewStaffName('');
-      setNewStaffPw('');
-      fetchStaffAccounts();
-    }
+    if (error) setStaffMsg('Error: ' + error.message);
+    else { setStaffMsg('Staff account created!'); setNewStaffName(''); setNewStaffPw(''); fetchStaffAccounts(); }
     setStaffSaving(false);
   }
 
@@ -131,29 +327,20 @@ export default function Admin() {
   async function saveInlinePassword(id) {
     if (!inlinePw.trim()) return;
     await supabase.from('staff_accounts').update({ password: inlinePw.trim() }).eq('id', id);
-    setStaffAccounts((prev) => prev.map((s) => (s.id === id ? { ...s, password: inlinePw.trim() } : s)));
-    setChangingPwFor(null);
-    setInlinePw('');
+    setChangingPwFor(null); setInlinePw('');
   }
 
-  function handleLogout() {
-    staffLogout();
-    navigate('/');
-  }
+  function handleLogout() { staffLogout(); navigate('/'); }
 
   function clearApptFilters() {
-    setSearch('');
-    setFilterDoctor('All');
-    setFilterStatus('All');
-    setFilterDateFrom('');
-    setFilterDateTo('');
+    setSearch(''); setFilterDoctor('All'); setFilterStatus('All'); setFilterDateFrom(''); setFilterDateTo('');
   }
 
   function exportCSV() {
-    const headers = ['Doctor', 'Specialty', 'Patient Name', 'DOB', 'Mobile', 'Address', 'Appointment Date', 'Appointment Time', 'Status', 'Booked On'];
+    const headers = ['Doctor', 'Category', 'Specialty', 'Patient Name', 'DOB', 'Mobile', 'Email', 'Address', 'Appointment Date', 'Appointment Time', 'Channel', 'Status', 'Booked On'];
     const rows = appointments.map((a) => [
-      a.doctor_name, a.specialty, a.patient_name, a.dob, a.mobile, a.address,
-      a.appointment_date, a.appointment_time, a.status || 'upcoming',
+      a.doctor_name, a.category, a.specialty, a.patient_name, a.dob, a.mobile, a.email, a.address,
+      a.appointment_date, a.appointment_time, a.booking_channel || 'website', a.status || 'upcoming',
       a.created_at ? new Date(a.created_at).toLocaleString('en-IN') : '',
     ]);
     const csv = [headers, ...rows].map((r) => r.map((v) => `"${(v || '').toString().replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -166,35 +353,20 @@ export default function Admin() {
     URL.revokeObjectURL(url);
   }
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  // ── Computed values ──
+  const todayStr     = new Date().toISOString().split('T')[0];
   const todayDayName = DAY_NAMES[new Date().getDay()];
   const doctorOptions = ['All', ...new Set(appointments.map((a) => a.doctor_name).filter(Boolean))];
-  const pendingCount = callbacks.filter((c) => c.status === 'pending').length;
+  const pendingCount  = callbacks.filter((c) => c.status === 'pending').length;
 
-  // KPI computations
-  const visitingToday = doctors.filter(
-    (d) => d.schedule && d.schedule.some((s) => s.day === todayDayName)
+  const visitingToday = dbDoctors.filter(
+    (d) => d.is_active && d.schedule && d.schedule.some((s) => s.day === todayDayName)
   );
   const todayAppts = appointments.filter((a) => a.appointment_date === todayStr);
   const patientsPerDoctorToday = todayAppts.reduce((acc, a) => {
     if (a.doctor_name) acc[a.doctor_name] = (acc[a.doctor_name] || 0) + 1;
     return acc;
   }, {});
-
-  // Analytics
-  const bookingsByDoctor = Object.entries(
-    appointments.reduce((acc, a) => { acc[a.doctor_name] = (acc[a.doctor_name] || 0) + 1; return acc; }, {})
-  ).sort((a, b) => b[1] - a[1]);
-
-  const bookingsByDay = appointments.reduce((acc, a) => {
-    if (a.appointment_date) acc[a.appointment_date] = (acc[a.appointment_date] || 0) + 1;
-    return acc;
-  }, {});
-  const last7Days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i));
-    const key = d.toISOString().split('T')[0];
-    return { label: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), count: bookingsByDay[key] || 0 };
-  });
 
   const hasApptFilters = search || filterDoctor !== 'All' || filterStatus !== 'All' || filterDateFrom || filterDateTo;
 
@@ -205,7 +377,7 @@ export default function Admin() {
       const matchDoctor = filterDoctor === 'All' || a.doctor_name === filterDoctor;
       const matchStatus = filterStatus === 'All' || (a.status || 'upcoming') === filterStatus;
       const matchFrom = !filterDateFrom || a.appointment_date >= filterDateFrom;
-      const matchTo = !filterDateTo || a.appointment_date <= filterDateTo;
+      const matchTo   = !filterDateTo   || a.appointment_date <= filterDateTo;
       return matchSearch && matchDoctor && matchStatus && matchFrom && matchTo;
     })
     .sort((a, b) => {
@@ -214,9 +386,22 @@ export default function Admin() {
     });
 
   function toggleSort(key) {
-    if (sortKey === key) setSortAsc((p) => !p);
-    else { setSortKey(key); setSortAsc(true); }
+    if (sortKey === key) setSortAsc((p) => !p); else { setSortKey(key); setSortAsc(true); }
   }
+
+  // Analytics data
+  const bookingsByDay = appointments.reduce((acc, a) => {
+    if (a.appointment_date) acc[a.appointment_date] = (acc[a.appointment_date] || 0) + 1;
+    return acc;
+  }, {});
+  const last30Days = Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (29 - i));
+    const key = d.toISOString().split('T')[0];
+    return { date: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), count: bookingsByDay[key] || 0 };
+  });
+  const bookingsByDoctor = Object.entries(
+    appointments.reduce((acc, a) => { if (a.doctor_name) { acc[a.doctor_name] = (acc[a.doctor_name] || 0) + 1; } return acc; }, {})
+  ).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, count]) => ({ name: name.replace('Dr. ', ''), count }));
 
   const SortIcon = ({ col }) => (
     <span className="ml-1 inline-flex flex-col">
@@ -231,19 +416,17 @@ export default function Admin() {
       <div className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/">
-              <img src={logo} alt="Life Care Clinic" className="h-10 w-10 rounded-xl object-cover ring-2 ring-green-100" />
-            </Link>
+            <Link to="/"><img src={logo} alt="Life Care Clinic" className="h-10 w-10 rounded-xl object-cover ring-2 ring-green-100" /></Link>
             <div>
               <h1 className="font-bold text-gray-900">Admin Dashboard</h1>
               <p className="text-xs text-gray-500">
-                Life Care Clinic — Jourian, Jammu Kashmir
+                Life Care Clinic — Jourian
                 {getStaffName() && <span className="ml-1 text-clinic-green">· {getStaffName()}</span>}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => { fetchAppointments(); fetchCallbacks(); }}
+            <button onClick={() => { fetchAppointments(); fetchCallbacks(); fetchDoctors(); }}
               disabled={apptLoading || cbLoading}
               className="flex items-center gap-1.5 text-sm text-clinic-green hover:text-clinic-green-dark font-semibold disabled:opacity-50">
               <svg className={`w-4 h-4 ${(apptLoading || cbLoading) ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -251,12 +434,10 @@ export default function Admin() {
               </svg>
               Refresh
             </button>
-            <Link to="/" className="text-sm text-gray-500 hover:text-clinic-green transition-colors font-medium">Home</Link>
-            <button onClick={handleLogout}
-              className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-600 transition-colors font-medium">
+            <Link to="/" className="text-sm text-gray-500 hover:text-clinic-green font-medium">Home</Link>
+            <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-600 font-medium">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
               Logout
             </button>
@@ -269,6 +450,9 @@ export default function Admin() {
             <TabBtn label="Appointments" count={appointments.length} active={activeTab === 'appointments'} onClick={() => setActiveTab('appointments')} />
             <TabBtn label="Callbacks" count={pendingCount} badge active={activeTab === 'callbacks'} onClick={() => setActiveTab('callbacks')} />
             <TabBtn label="Analytics" active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} />
+            <TabBtn label="Doctors" count={dbDoctors.length} active={activeTab === 'doctors'} onClick={() => setActiveTab('doctors')} />
+            <TabBtn label="Blocked Dates" active={activeTab === 'blocked'} onClick={() => setActiveTab('blocked')} />
+            <TabBtn label="Notify Patients" active={activeTab === 'notify'} onClick={() => setActiveTab('notify')} />
             <TabBtn label="Manage Staff" active={activeTab === 'staff'} onClick={() => setActiveTab('staff')} />
             <TabBtn label="Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
           </div>
@@ -277,52 +461,43 @@ export default function Admin() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
-        {/* ── KPI Cards (shown on Appointments + Analytics tabs) ── */}
+        {/* ── KPI Cards (Appointments + Analytics) ── */}
         {(activeTab === 'appointments' || activeTab === 'analytics') && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {/* Visiting Doctors Today */}
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
               <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1">Visiting Today</p>
               <p className="text-3xl font-bold text-blue-700">{visitingToday.length}</p>
               <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
-                {visitingToday.length === 0 ? (
-                  <p className="text-xs text-blue-400">No scheduled visits</p>
-                ) : visitingToday.map((d) => {
-                  const slot = d.schedule.find((s) => s.day === todayDayName);
-                  return (
-                    <div key={d.id} className="flex items-center justify-between gap-1">
-                      <span className="text-xs font-medium text-blue-800 truncate">{d.name}</span>
-                      {slot && <span className="text-xs text-blue-500 whitespace-nowrap flex-shrink-0">{slot.startTime}</span>}
-                    </div>
-                  );
-                })}
+                {visitingToday.length === 0 ? <p className="text-xs text-blue-400">No scheduled visits</p>
+                  : visitingToday.map((d) => {
+                    const slot = d.schedule.find((s) => s.day === todayDayName);
+                    return (
+                      <div key={d.id} className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-medium text-blue-800 truncate">{d.name}</span>
+                        {slot && <span className="text-xs text-blue-500 whitespace-nowrap flex-shrink-0">{slot.startTime}</span>}
+                      </div>
+                    );
+                  })}
               </div>
             </div>
-
-            {/* Total Patients Today */}
             <div className="bg-green-50 border border-green-100 rounded-xl p-4">
               <p className="text-xs font-semibold text-green-500 uppercase tracking-wide mb-1">Patients Today</p>
               <p className="text-3xl font-bold text-green-700">{todayAppts.length}</p>
               <p className="text-xs text-green-500 mt-1 opacity-75">of {appointments.length} total</p>
             </div>
-
-            {/* Patients per Doctor Today */}
             <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
               <p className="text-xs font-semibold text-purple-500 uppercase tracking-wide mb-1">By Doctor Today</p>
               <p className="text-3xl font-bold text-purple-700">{todayAppts.length}</p>
               <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
-                {Object.keys(patientsPerDoctorToday).length === 0 ? (
-                  <p className="text-xs text-purple-400">No appointments today</p>
-                ) : Object.entries(patientsPerDoctorToday).map(([doc, cnt]) => (
-                  <div key={doc} className="flex items-center justify-between gap-1">
-                    <span className="text-xs font-medium text-purple-800 truncate">{doc}</span>
-                    <span className="text-xs font-bold text-purple-600 flex-shrink-0">{cnt}p</span>
-                  </div>
-                ))}
+                {Object.keys(patientsPerDoctorToday).length === 0 ? <p className="text-xs text-purple-400">No appointments today</p>
+                  : Object.entries(patientsPerDoctorToday).map(([doc, cnt]) => (
+                    <div key={doc} className="flex items-center justify-between gap-1">
+                      <span className="text-xs font-medium text-purple-800 truncate">{doc}</span>
+                      <span className="text-xs font-bold text-purple-600 flex-shrink-0">{cnt}p</span>
+                    </div>
+                  ))}
               </div>
             </div>
-
-            {/* Pending Callbacks */}
             <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
               <p className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-1">Pending Callbacks</p>
               <p className="text-3xl font-bold text-orange-700">{pendingCount}</p>
@@ -352,19 +527,14 @@ export default function Admin() {
                 {['All', 'upcoming', 'completed', 'cancelled'].map((s) => <option key={s}>{s}</option>)}
               </select>
               <div className="flex items-center gap-2">
-                <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
-                  title="From date"
+                <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} title="From"
                   className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white text-gray-700" />
                 <span className="text-gray-400 text-sm">–</span>
-                <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)}
-                  title="To date"
+                <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} title="To"
                   className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white text-gray-700" />
               </div>
               {hasApptFilters && (
-                <button onClick={clearApptFilters}
-                  className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2.5 border border-gray-200 rounded-xl bg-white">
-                  Clear
-                </button>
+                <button onClick={clearApptFilters} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2.5 border border-gray-200 rounded-xl bg-white">Clear</button>
               )}
               <button onClick={exportCSV}
                 className="flex items-center gap-2 bg-clinic-green hover:bg-clinic-green-dark text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition whitespace-nowrap">
@@ -376,13 +546,10 @@ export default function Admin() {
             </div>
 
             <p className="text-xs text-gray-400 mb-3">Showing {filteredAppts.length} of {appointments.length} appointments</p>
-
             {apptError && <ErrorBox msg={apptError} />}
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              {apptLoading ? <Loading text="Loading appointments..." /> : filteredAppts.length === 0 ? (
-                <Empty text="No appointments found" />
-              ) : (
+              {apptLoading ? <Loading text="Loading appointments..." /> : filteredAppts.length === 0 ? <Empty text="No appointments found" /> : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead>
@@ -430,13 +597,9 @@ export default function Admin() {
                               {status === 'upcoming' && (
                                 <div className="flex gap-1.5">
                                   <button onClick={() => updateAppointmentStatus(apt.id, 'completed')} disabled={updatingId === apt.id}
-                                    className="text-xs bg-green-100 hover:bg-green-200 text-green-700 font-semibold px-2.5 py-1 rounded-lg disabled:opacity-50 whitespace-nowrap transition">
-                                    ✓ Done
-                                  </button>
+                                    className="text-xs bg-green-100 hover:bg-green-200 text-green-700 font-semibold px-2.5 py-1 rounded-lg disabled:opacity-50 whitespace-nowrap transition">✓ Done</button>
                                   <button onClick={() => updateAppointmentStatus(apt.id, 'cancelled')} disabled={updatingId === apt.id}
-                                    className="text-xs bg-red-100 hover:bg-red-200 text-red-700 font-semibold px-2.5 py-1 rounded-lg disabled:opacity-50 whitespace-nowrap transition">
-                                    ✕ Cancel
-                                  </button>
+                                    className="text-xs bg-red-100 hover:bg-red-200 text-red-700 font-semibold px-2.5 py-1 rounded-lg disabled:opacity-50 whitespace-nowrap transition">✕ Cancel</button>
                                 </div>
                               )}
                               {status !== 'upcoming' && <span className="text-xs text-gray-300">—</span>}
@@ -469,13 +632,9 @@ export default function Admin() {
                 <p className="text-3xl font-bold text-blue-700">{callbacks.filter((c) => c.status === 'done').length}</p>
               </div>
             </div>
-
             {cbError && <ErrorBox msg={cbError} />}
-
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              {cbLoading ? <Loading text="Loading callback requests..." /> : callbacks.length === 0 ? (
-                <Empty text="No callback requests yet" />
-              ) : (
+              {cbLoading ? <Loading text="Loading callback requests..." /> : callbacks.length === 0 ? <Empty text="No callback requests yet" /> : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead>
@@ -489,9 +648,7 @@ export default function Admin() {
                       {callbacks.map((cb) => (
                         <tr key={cb.id} className={`transition-colors ${cb.status === 'pending' ? 'hover:bg-amber-50/30' : 'hover:bg-gray-50'}`}>
                           <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{cb.patient_name}</td>
-                          <td className="px-4 py-3">
-                            <a href={`tel:${cb.mobile}`} className="text-clinic-green hover:underline font-medium whitespace-nowrap">{cb.mobile}</a>
-                          </td>
+                          <td className="px-4 py-3"><a href={`tel:${cb.mobile}`} className="text-clinic-green hover:underline font-medium whitespace-nowrap">{cb.mobile}</a></td>
                           <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs">{cb.preferred_time}</td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${cb.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
@@ -505,9 +662,7 @@ export default function Admin() {
                                 className="flex items-center gap-1.5 bg-clinic-green hover:bg-clinic-green-dark disabled:opacity-60 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition whitespace-nowrap">
                                 {markingId === cb.id ? '...' : '✓ Mark Done'}
                               </button>
-                            ) : (
-                              <span className="text-xs text-gray-400">Completed</span>
-                            )}
+                            ) : <span className="text-xs text-gray-400">Completed</span>}
                           </td>
                         </tr>
                       ))}
@@ -522,56 +677,336 @@ export default function Admin() {
         {/* ── ANALYTICS ── */}
         {activeTab === 'analytics' && (
           <div className="space-y-6">
-            {/* Last 7 days bar */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-              <h3 className="font-bold text-gray-900 mb-4">Appointments — Last 7 Days</h3>
-              <div className="flex items-end gap-3 h-36">
-                {last7Days.map((day, i) => {
-                  const max = Math.max(...last7Days.map((d) => d.count), 1);
-                  const pct = (day.count / max) * 100;
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <span className="text-xs font-semibold text-gray-700">{day.count || ''}</span>
-                      <div className="w-full bg-gray-100 rounded-t-lg" style={{ height: '96px' }}>
-                        <div className="w-full bg-clinic-green rounded-t-lg transition-all duration-500" style={{ height: `${pct}%`, marginTop: `${100 - pct}%` }} />
-                      </div>
-                      <span className="text-xs text-gray-500 text-center leading-tight">{day.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
+              <h3 className="font-bold text-gray-900 mb-4">Appointments — Last 30 Days</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={last30Days} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={4} />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} />
+                  <Line type="monotone" dataKey="count" name="Appointments" stroke="#2d7a4e" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
 
-            {/* Popular doctors */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-gray-900">Bookings by Doctor</h3>
-                <button onClick={exportCSV}
-                  className="flex items-center gap-2 text-sm font-semibold text-clinic-green hover:text-clinic-green-dark">
+                <button onClick={exportCSV} className="flex items-center gap-2 text-sm font-semibold text-clinic-green hover:text-clinic-green-dark">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   Export CSV
                 </button>
               </div>
-              {bookingsByDoctor.length === 0 ? (
-                <p className="text-sm text-gray-400">No data yet</p>
-              ) : (
-                <div className="space-y-3">
-                  {bookingsByDoctor.map(([doctor, count]) => {
-                    const max = bookingsByDoctor[0][1];
-                    const pct = (count / max) * 100;
-                    return (
-                      <div key={doctor} className="flex items-center gap-3">
-                        <p className="text-sm font-medium text-gray-700 w-40 flex-shrink-0 truncate">{doctor}</p>
-                        <div className="flex-1 bg-gray-100 rounded-full h-2.5">
-                          <div className="bg-clinic-green h-2.5 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-sm font-bold text-gray-700 w-8 text-right">{count}</span>
-                      </div>
-                    );
-                  })}
+              {bookingsByDoctor.length === 0 ? <p className="text-sm text-gray-400">No data yet</p> : (
+                <ResponsiveContainer width="100%" height={Math.max(160, bookingsByDoctor.length * 36)}>
+                  <BarChart data={bookingsByDoctor} layout="vertical" margin={{ top: 0, right: 24, bottom: 0, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="count" name="Bookings" fill="#2d7a4e" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── DOCTORS ── */}
+        {activeTab === 'doctors' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-bold text-gray-900">Manage Doctors</h2>
+                <p className="text-sm text-gray-500">{dbDoctors.length} doctor{dbDoctors.length !== 1 ? 's' : ''} total</p>
+              </div>
+              <button onClick={startAddDoctor}
+                className="flex items-center gap-2 bg-clinic-green hover:bg-clinic-green-dark text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition">
+                + Add Doctor
+              </button>
+            </div>
+
+            {doctorsLoading ? <Loading text="Loading doctors..." /> : (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100">
+                        {['#', 'Doctor', 'Category', 'Schedule', 'Status', 'Actions'].map((h) => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {dbDoctors.map((doc) => (
+                        <tr key={doc.id} className={`transition-colors ${doc.is_active ? 'hover:bg-gray-50' : 'bg-gray-50/60 opacity-60'}`}>
+                          <td className="px-4 py-3 text-gray-400 text-xs">{doc.order_index}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className={`${doc.color} w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
+                                {doc.initials}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-gray-800 whitespace-nowrap">{doc.name}</p>
+                                <p className="text-xs text-gray-400 truncate max-w-[200px]">{doc.specialty}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${doc.badgeColor}`}>
+                              {doc.category}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-500">
+                            {doc.isEyeCamp ? 'Eye Camp (on request)' :
+                              doc.everyDay ? 'Every day' :
+                              doc.schedule?.length
+                                ? doc.schedule.map((s) => s.day.substring(0, 3)).join(', ')
+                                : '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${doc.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {doc.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => startEditDoctor(doc)}
+                                className="text-xs text-blue-600 hover:text-blue-700 font-medium">Edit</button>
+                              <button onClick={() => toggleDoctorActive(doc)}
+                                className={`text-xs font-medium ${doc.is_active ? 'text-amber-600 hover:text-amber-700' : 'text-green-600 hover:text-green-700'}`}>
+                                {doc.is_active ? 'Disable' : 'Enable'}
+                              </button>
+                              {deleteConfirmId === doc.id ? (
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => deleteDoctor(doc.id)} className="text-xs text-red-600 font-semibold">Confirm</button>
+                                  <button onClick={() => setDeleteConfirmId(null)} className="text-xs text-gray-400">Cancel</button>
+                                </div>
+                              ) : (
+                                <button onClick={() => setDeleteConfirmId(doc.id)} className="text-xs text-red-500 hover:text-red-600 font-medium">Delete</button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
+              </div>
+            )}
+
+            {/* Doctor Add/Edit Modal */}
+            {showDoctorForm && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setShowDoctorForm(false)}>
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                  <div className="px-6 py-5 border-b border-gray-100">
+                    <h2 className="font-bold text-gray-900">{editingDoctorId ? 'Edit Doctor' : 'Add New Doctor'}</h2>
+                  </div>
+                  <div className="px-6 py-5 space-y-4">
+                    {doctorMsg && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{doctorMsg}</div>}
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                        <input value={doctorForm.name} onChange={(e) => setDoctorForm({ ...doctorForm, name: e.target.value })}
+                          placeholder="Dr. Full Name" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Specialty / Qualifications</label>
+                        <input value={doctorForm.specialty} onChange={(e) => setDoctorForm({ ...doctorForm, specialty: e.target.value })}
+                          placeholder="e.g. M.B.B.S., M.D." className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Role / Title</label>
+                        <input value={doctorForm.role} onChange={(e) => setDoctorForm({ ...doctorForm, role: e.target.value })}
+                          placeholder="e.g. Orthopaedic Surgeon" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <input value={doctorForm.category} onChange={(e) => setDoctorForm({ ...doctorForm, category: e.target.value })}
+                          placeholder="e.g. Cardiology" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Initials (shown on card)</label>
+                        <input value={doctorForm.initials} onChange={(e) => setDoctorForm({ ...doctorForm, initials: e.target.value })}
+                          maxLength={4} placeholder="e.g. NS" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Colour Theme</label>
+                        <select value={doctorForm.themeIdx} onChange={(e) => setDoctorForm({ ...doctorForm, themeIdx: +e.target.value })}
+                          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white">
+                          {COLOR_THEMES.map((t, i) => <option key={i} value={i}>{t.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Order Index</label>
+                        <input type="number" min="0" value={doctorForm.order_index} onChange={(e) => setDoctorForm({ ...doctorForm, order_index: e.target.value })}
+                          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-6">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={doctorForm.is_eye_camp} onChange={(e) => setDoctorForm({ ...doctorForm, is_eye_camp: e.target.checked })}
+                          className="w-4 h-4 accent-clinic-green" />
+                        <span className="text-sm font-medium text-gray-700">Eye Camp (no fixed schedule)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={doctorForm.is_active} onChange={(e) => setDoctorForm({ ...doctorForm, is_active: e.target.checked })}
+                          className="w-4 h-4 accent-clinic-green" />
+                        <span className="text-sm font-medium text-gray-700">Active</span>
+                      </label>
+                    </div>
+
+                    {!doctorForm.is_eye_camp && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-sm font-medium text-gray-700">Schedule</label>
+                          <button type="button" onClick={() => setScheduleRows((p) => [...p, { day: 'Monday', startTime: '', endTime: '' }])}
+                            className="text-xs text-clinic-green hover:text-clinic-green-dark font-semibold">+ Add Day</button>
+                        </div>
+                        <div className="space-y-2">
+                          {scheduleRows.map((row, idx) => (
+                            <div key={idx} className="flex gap-2 items-center">
+                              <select value={row.day} onChange={(e) => setScheduleRows((p) => p.map((r, i) => i === idx ? { ...r, day: e.target.value } : r))}
+                                className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm outline-none focus:ring-1 focus:ring-clinic-green bg-white flex-shrink-0">
+                                {WEEKDAYS.map((d) => <option key={d}>{d}</option>)}
+                              </select>
+                              <input value={row.startTime} onChange={(e) => setScheduleRows((p) => p.map((r, i) => i === idx ? { ...r, startTime: e.target.value } : r))}
+                                placeholder="e.g. 4:30 PM" className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm outline-none focus:ring-1 focus:ring-clinic-green flex-1 min-w-0" />
+                              <input value={row.endTime} onChange={(e) => setScheduleRows((p) => p.map((r, i) => i === idx ? { ...r, endTime: e.target.value } : r))}
+                                placeholder="End (optional)" className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm outline-none focus:ring-1 focus:ring-clinic-green flex-1 min-w-0" />
+                              {scheduleRows.length > 1 && (
+                                <button type="button" onClick={() => setScheduleRows((p) => p.filter((_, i) => i !== idx))}
+                                  className="text-red-400 hover:text-red-600 flex-shrink-0 text-lg leading-none">×</button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end">
+                    <button onClick={() => setShowDoctorForm(false)}
+                      className="px-5 py-2.5 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition">
+                      Cancel
+                    </button>
+                    <button onClick={saveDoctor} disabled={doctorSaving}
+                      className="px-5 py-2.5 text-sm font-semibold text-white bg-clinic-green hover:bg-clinic-green-dark disabled:opacity-60 rounded-xl transition">
+                      {doctorSaving ? 'Saving...' : editingDoctorId ? 'Save Changes' : 'Add Doctor'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── BLOCKED DATES ── */}
+        {activeTab === 'blocked' && (
+          <div className="space-y-6 max-w-xl">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+              <h3 className="font-bold text-gray-900 mb-1">Block a Date</h3>
+              <p className="text-sm text-gray-500 mb-4">Blocked dates won't appear in the online booking calendar</p>
+              <div className="space-y-3">
+                <input type="date" value={newBlockDate} onChange={(e) => setNewBlockDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
+                <input type="text" value={newBlockReason} onChange={(e) => setNewBlockReason(e.target.value)}
+                  placeholder="Reason (optional) — e.g. Public holiday"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
+                <button onClick={addBlockedDate} disabled={!newBlockDate || blockSaving}
+                  className="w-full bg-clinic-green hover:bg-clinic-green-dark disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl transition text-sm">
+                  {blockSaving ? 'Blocking...' : 'Block Date'}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h3 className="font-bold text-gray-900">Blocked Dates ({blockedDates.length})</h3>
+              </div>
+              {blockedDates.length === 0 ? <Empty text="No dates blocked" /> : (
+                <div className="divide-y divide-gray-50">
+                  {blockedDates.map((bd) => (
+                    <div key={bd.id} className="flex items-center justify-between px-6 py-3">
+                      <div>
+                        <p className="font-semibold text-gray-800 text-sm">{fmtDate(bd.blocked_date)}</p>
+                        {bd.reason && <p className="text-xs text-gray-400">{bd.reason}</p>}
+                      </div>
+                      <button onClick={() => removeBlockedDate(bd.id)}
+                        className="text-xs text-red-500 hover:text-red-600 font-medium">Unblock</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── NOTIFY PATIENTS ── */}
+        {activeTab === 'notify' && (
+          <div className="space-y-6 max-w-2xl">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+              <h3 className="font-bold text-gray-900 mb-1">Notify Patients by Appointment</h3>
+              <p className="text-sm text-gray-500 mb-5">Send an email to all patients booked for a specific doctor on a given date</p>
+
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
+                  <select value={notifyDoctor} onChange={(e) => { setNotifyDoctor(e.target.value); setNotifyPatients([]); setNotifyResult(''); }}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white">
+                    <option value="">Select doctor...</option>
+                    {doctorOptions.slice(1).map((d) => <option key={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Date</label>
+                  <input type="date" value={notifyDate} onChange={(e) => { setNotifyDate(e.target.value); setNotifyPatients([]); setNotifyResult(''); }}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
+                </div>
+              </div>
+
+              <button onClick={loadPatientsForNotification} disabled={!notifyDoctor || !notifyDate || notifyLoading}
+                className="mb-5 text-sm font-semibold text-clinic-green hover:text-clinic-green-dark disabled:opacity-50">
+                {notifyLoading ? 'Loading...' : 'Load Patients →'}
+              </button>
+
+              {notifyPatients.length > 0 && (
+                <>
+                  <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                    <p className="text-sm font-semibold text-gray-700 mb-2">{notifyPatients.length} patient{notifyPatients.length !== 1 ? 's' : ''} found — {notifyPatients.filter((p) => p.email).length} with email</p>
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      {notifyPatients.map((p, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs">
+                          <span className="text-gray-700 font-medium">{p.patient_name}</span>
+                          <span className={p.email ? 'text-green-600' : 'text-gray-400'}>{p.email || 'No email'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                    <textarea value={notifyMessage} onChange={(e) => setNotifyMessage(e.target.value)}
+                      rows={4} placeholder="Enter your message to patients..."
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green resize-none" />
+                  </div>
+
+                  <button onClick={sendNotifications} disabled={notifySending || !notifyMessage.trim()}
+                    className="w-full bg-clinic-green hover:bg-clinic-green-dark disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl transition text-sm">
+                    {notifySending ? 'Sending...' : `Send Notification to ${notifyPatients.filter((p) => p.email).length} Patient(s)`}
+                  </button>
+
+                  {notifyResult && (
+                    <div className="mt-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                      {notifyResult}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -580,37 +1015,26 @@ export default function Admin() {
         {/* ── MANAGE STAFF ── */}
         {activeTab === 'staff' && (
           <div className="space-y-6">
-            {/* Create new staff account */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <h3 className="font-bold text-gray-900 mb-1">Create Staff Account</h3>
               <p className="text-sm text-gray-500 mb-5">Add a new staff login with name and password</p>
-
               {staffMsg && (
                 <div className={`text-sm rounded-xl px-4 py-3 mb-4 ${staffMsg.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-green-50 border border-green-200 text-green-700'}`}>
                   {staffMsg}
                 </div>
               )}
-
               <form onSubmit={createStaffAccount} className="flex flex-wrap gap-3 items-end">
                 <div className="flex-1 min-w-[180px]">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    value={newStaffName}
-                    onChange={(e) => { setNewStaffName(e.target.value); setStaffMsg(''); }}
+                  <input type="text" value={newStaffName} onChange={(e) => { setNewStaffName(e.target.value); setStaffMsg(''); }}
                     placeholder="e.g. Priya Sharma"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green"
-                  />
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
                 </div>
                 <div className="flex-1 min-w-[180px]">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                  <input
-                    type="text"
-                    value={newStaffPw}
-                    onChange={(e) => { setNewStaffPw(e.target.value); setStaffMsg(''); }}
+                  <input type="text" value={newStaffPw} onChange={(e) => { setNewStaffPw(e.target.value); setStaffMsg(''); }}
                     placeholder="Set a password"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green"
-                  />
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
                 </div>
                 <button type="submit" disabled={staffSaving || !newStaffName.trim() || !newStaffPw.trim()}
                   className="bg-clinic-green hover:bg-clinic-green-dark disabled:opacity-60 text-white font-semibold py-2.5 px-6 rounded-xl transition text-sm whitespace-nowrap">
@@ -619,22 +1043,15 @@ export default function Admin() {
               </form>
             </div>
 
-            {/* Staff accounts list */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-gray-900">Staff Accounts</h3>
                   <p className="text-xs text-gray-500 mt-0.5">{staffAccounts.length} account{staffAccounts.length !== 1 ? 's' : ''} total</p>
                 </div>
-                <button onClick={fetchStaffAccounts} disabled={staffLoading}
-                  className="text-sm text-clinic-green hover:text-clinic-green-dark font-semibold disabled:opacity-50">
-                  Refresh
-                </button>
+                <button onClick={fetchStaffAccounts} disabled={staffLoading} className="text-sm text-clinic-green hover:text-clinic-green-dark font-semibold disabled:opacity-50">Refresh</button>
               </div>
-
-              {staffLoading ? <Loading text="Loading staff accounts..." /> : staffAccounts.length === 0 ? (
-                <Empty text="No staff accounts found" />
-              ) : (
+              {staffLoading ? <Loading text="Loading staff accounts..." /> : staffAccounts.length === 0 ? <Empty text="No staff accounts found" /> : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead>
@@ -663,40 +1080,22 @@ export default function Admin() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap items-center gap-2">
-                              {/* Change password inline */}
                               {changingPwFor === staff.id ? (
                                 <div className="flex items-center gap-1.5">
-                                  <input
-                                    type="text"
-                                    value={inlinePw}
-                                    onChange={(e) => setInlinePw(e.target.value)}
+                                  <input type="text" value={inlinePw} onChange={(e) => setInlinePw(e.target.value)}
                                     placeholder="New password"
                                     className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs w-28 outline-none focus:ring-1 focus:ring-clinic-green"
-                                    autoFocus
-                                  />
-                                  <button
-                                    onClick={() => saveInlinePassword(staff.id)}
-                                    disabled={!inlinePw.trim()}
-                                    className="text-xs bg-clinic-green disabled:opacity-50 text-white px-2.5 py-1 rounded-lg font-semibold transition">
-                                    Save
-                                  </button>
-                                  <button onClick={() => { setChangingPwFor(null); setInlinePw(''); }}
-                                    className="text-xs text-gray-400 hover:text-gray-600">
-                                    Cancel
-                                  </button>
+                                    autoFocus />
+                                  <button onClick={() => saveInlinePassword(staff.id)} disabled={!inlinePw.trim()}
+                                    className="text-xs bg-clinic-green disabled:opacity-50 text-white px-2.5 py-1 rounded-lg font-semibold transition">Save</button>
+                                  <button onClick={() => { setChangingPwFor(null); setInlinePw(''); }} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
                                 </div>
                               ) : (
-                                <button
-                                  onClick={() => { setChangingPwFor(staff.id); setInlinePw(''); }}
-                                  className="text-xs text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap">
-                                  Change Password
-                                </button>
+                                <button onClick={() => { setChangingPwFor(staff.id); setInlinePw(''); }}
+                                  className="text-xs text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap">Change Password</button>
                               )}
-
-                              {/* Enable / Disable */}
                               {staff.role !== 'admin' && (
-                                <button
-                                  onClick={() => toggleStaffActive(staff.id, staff.is_active)}
+                                <button onClick={() => toggleStaffActive(staff.id, staff.is_active)}
                                   className={`text-xs font-medium whitespace-nowrap ${staff.is_active ? 'text-red-500 hover:text-red-600' : 'text-green-600 hover:text-green-700'}`}>
                                   {staff.is_active ? 'Disable' : 'Enable'}
                                 </button>
@@ -720,19 +1119,14 @@ export default function Admin() {
               <h3 className="font-bold text-gray-900 mb-1">Staff Accounts</h3>
               <p className="text-sm text-gray-500 mb-5">
                 Manage staff logins from the{' '}
-                <button onClick={() => setActiveTab('staff')} className="text-clinic-green font-semibold hover:underline">
-                  Manage Staff
-                </button>{' '}
+                <button onClick={() => setActiveTab('staff')} className="text-clinic-green font-semibold hover:underline">Manage Staff</button>{' '}
                 tab. Create, enable/disable, and change passwords there.
               </p>
             </div>
-
-            {/* Export */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <h3 className="font-bold text-gray-900 mb-1">Export Data</h3>
               <p className="text-sm text-gray-500 mb-5">Download all appointment records as a CSV file</p>
-              <button onClick={exportCSV}
-                className="flex items-center gap-2 bg-clinic-green hover:bg-clinic-green-dark text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
+              <button onClick={exportCSV} className="flex items-center gap-2 bg-clinic-green hover:bg-clinic-green-dark text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
@@ -749,7 +1143,7 @@ export default function Admin() {
 function TabBtn({ label, count, active, onClick, badge }) {
   return (
     <button onClick={onClick}
-      className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${active ? 'border-clinic-green text-clinic-green' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+      className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${active ? 'border-clinic-green text-clinic-green' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
       {label}
       {count > 0 && (
         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${active ? (badge ? 'bg-amber-100 text-amber-700' : 'bg-clinic-green-lite text-clinic-green') : 'bg-gray-100 text-gray-500'}`}>

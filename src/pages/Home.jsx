@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import HeroSection from '../components/HeroSection';
 import DoctorCard from '../components/DoctorCard';
 import BookingModal from '../components/BookingModal';
-import { doctors, categories } from '../data/doctors';
+import { useDoctors } from '../hooks/useDoctors';
 
 const SERVICES = [
   {
@@ -102,6 +102,12 @@ export default function Home() {
   const [searchQuery, setSearchQuery]       = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const { doctors, loading: doctorsLoading } = useDoctors();
+
+  const categories = useMemo(() => {
+    const cats = [...new Set(doctors.map((d) => d.category).filter(Boolean))];
+    return ['All', ...cats];
+  }, [doctors]);
 
   const filtered = useMemo(() => {
     return doctors.filter((d) => {
@@ -115,7 +121,7 @@ export default function Home() {
       const matchesCategory = selectedCategory === 'All' || d.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [searchQuery, selectedCategory]);
+  }, [searchQuery, selectedCategory, doctors]);
 
   function clearFilter() {
     setSelectedCategory('All');
@@ -240,7 +246,23 @@ export default function Home() {
           </div>
 
           {/* Cards grid */}
-          {filtered.length > 0 ? (
+          {doctorsLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl border border-gray-100 p-5 animate-pulse">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-gray-200 rounded-xl" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-gray-200 rounded w-3/4" />
+                      <div className="h-3 bg-gray-100 rounded w-1/2" />
+                    </div>
+                  </div>
+                  <div className="h-3 bg-gray-100 rounded w-full mb-2" />
+                  <div className="h-3 bg-gray-100 rounded w-5/6" />
+                </div>
+              ))}
+            </div>
+          ) : filtered.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filtered.map((doctor) => (
                 <DoctorCard key={doctor.id} doctor={doctor} onBook={setSelectedDoctor} />

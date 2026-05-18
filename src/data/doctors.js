@@ -1,3 +1,5 @@
+// Static fallback used only until Supabase doctors table is seeded.
+// After seeding, components should use the useDoctors hook instead.
 export const doctors = [
   {
     id: 1,
