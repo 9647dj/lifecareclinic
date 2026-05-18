@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
-import emailjs from '@emailjs/browser';
 import { supabase } from '../lib/supabase';
+import resend from '../lib/resend';
 import { getAvailableDates } from '../data/doctors';
 import DatePicker from './DatePicker';
 import { useAuth } from '../context/AuthContext';
 
-const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-const EMAILJS_PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+const CLINIC_EMAIL = 'lifecarejourian@gmail.com';
+const FROM_EMAIL   = 'Life Care Clinic <onboarding@resend.dev>';
 
 export default function BookingModal({ doctor, onClose }) {
   const isEyeCamp = !!doctor.isEyeCamp;
@@ -145,24 +144,24 @@ export default function BookingModal({ doctor, onClose }) {
     // Best-effort patient record upsert
     await upsertPatient();
 
-    emailjs.send(
-      EMAILJS_SERVICE_ID,
-      EMAILJS_TEMPLATE_ID,
-      {
-        patient_name: form.name.trim(),
-        dob: isEyeCamp ? 'N/A' : form.dob.trim(),
-        mobile: form.mobile.trim(),
-        address: form.address.trim(),
-        doctor_name: doctor.name,
-        specialty: doctor.specialty,
-        appointment_date: isEyeCamp
-          ? `Preferred Month: ${form.preferredMonth.trim()}`
-          : selectedDate.date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-        appointment_time: isEyeCamp ? 'Eye Camp — Awaiting Confirmation' : selectedDate.timeDisplay,
-        booked_at: bookedAt,
-      },
-      EMAILJS_PUBLIC_KEY
-    ).catch(() => {});
+    resend.emails.send({
+      from: FROM_EMAIL,
+      to: CLINIC_EMAIL,
+      subject: `New Appointment Booked - ${doctor.name}`,
+      html: `
+        <h2>New Appointment Booked!</h2>
+        <p><b>Patient:</b> ${form.name.trim()}</p>
+        <p><b>DOB:</b> ${isEyeCamp ? 'N/A' : form.dob.trim()}</p>
+        <p><b>Mobile:</b> ${form.mobile.trim()}</p>
+        <p><b>Email:</b> ${form.email.trim() || '—'}</p>
+        <p><b>Address:</b> ${form.address.trim()}</p>
+        <p><b>Doctor:</b> ${doctor.name}</p>
+        <p><b>Specialty:</b> ${doctor.specialty}</p>
+        <p><b>Date:</b> ${isEyeCamp ? `Preferred Month: ${form.preferredMonth.trim()}` : selectedDate.date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        <p><b>Time:</b> ${isEyeCamp ? 'Eye Camp — Awaiting Confirmation' : selectedDate.timeDisplay}</p>
+        <p><b>Booked at:</b> ${bookedAt}</p>
+      `,
+    }).catch(() => {});
 
     setLoading(false);
     setStep('success');

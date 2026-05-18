@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
-import emailjs from '@emailjs/browser';
 import { supabase } from '../lib/supabase';
+import resend from '../lib/resend';
+
+const CLINIC_EMAIL = 'lifecarejourian@gmail.com';
+const FROM_EMAIL   = 'Life Care Clinic <onboarding@resend.dev>';
 
 const TIME_SLOTS = [
   'Morning (9AM – 12PM)',
@@ -68,17 +71,18 @@ export default function CallbackButton() {
       return;
     }
 
-    emailjs.send(
-      import.meta.env.VITE_EMAILJS_SERVICE_ID,
-      import.meta.env.VITE_EMAILJS_CALLBACK_TEMPLATE_ID,
-      {
-        patient_name: form.name.trim(),
-        mobile: form.mobile.trim(),
-        preferred_time: form.preferredTime,
-        submitted_at: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
-      },
-      import.meta.env.VITE_EMAILJS_PUBLIC_KEY
-    ).catch(() => {});
+    resend.emails.send({
+      from: FROM_EMAIL,
+      to: CLINIC_EMAIL,
+      subject: `New Callback Request - ${form.name.trim()}`,
+      html: `
+        <h2>New Callback Request!</h2>
+        <p><b>Patient:</b> ${form.name.trim()}</p>
+        <p><b>Mobile:</b> ${form.mobile.trim()}</p>
+        <p><b>Preferred Time:</b> ${form.preferredTime}</p>
+        <p><b>Requested at:</b> ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+      `,
+    }).catch(() => {});
 
     setLoading(false);
     setStep('success');

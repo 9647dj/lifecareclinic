@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import emailjs from '@emailjs/browser';
+import resend from '../lib/resend';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { mapDoctorRow } from '../hooks/useDoctors';
@@ -281,19 +281,21 @@ export default function Admin() {
     }
     setNotifySending(true); setNotifyResult('');
     for (const p of patientsWithEmail) {
-      await emailjs.send(
-        import.meta.env.VITE_EMAILJS_SERVICE_ID,
-        import.meta.env.VITE_EMAILJS_NOTIFICATION_TEMPLATE_ID,
-        {
-          to_email: p.email,
-          patient_name: p.patient_name,
-          doctor_name: notifyDoctor,
-          appointment_date: notifyDate,
-          appointment_time: p.appointment_time,
-          message: notifyMessage,
-        },
-        import.meta.env.VITE_EMAILJS_PUBLIC_KEY
-      ).catch(() => {});
+      await resend.emails.send({
+        from: 'Life Care Clinic <onboarding@resend.dev>',
+        to: p.email,
+        subject: `Appointment Reminder — ${notifyDoctor} on ${notifyDate}`,
+        html: `
+          <h2>Appointment Reminder from Life Care Clinic</h2>
+          <p>Dear <b>${p.patient_name}</b>,</p>
+          <p><b>Doctor:</b> ${notifyDoctor}</p>
+          <p><b>Date:</b> ${notifyDate}</p>
+          <p><b>Time:</b> ${p.appointment_time}</p>
+          <p>${notifyMessage.replace(/\n/g, '<br/>')}</p>
+          <hr/>
+          <p style="color:#666;font-size:12px;">Life Care Clinic, Main Road Jourian, Jammu Kashmir. For queries call 01924-467500.</p>
+        `,
+      }).catch(() => {});
     }
     await supabase.from('notification_logs').insert({
       doctor_name: notifyDoctor,
