@@ -17,7 +17,7 @@ export default function BookingModal({ doctor, onClose }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
 
   useEffect(() => {
     if (profile) {
@@ -61,25 +61,27 @@ export default function BookingModal({ doctor, onClose }) {
 
     const payload = isEyeCamp
       ? {
-          doctor_name: doctor.name,
-          specialty: doctor.specialty,
           patient_name: form.name.trim(),
-          dob: null,
           mobile: form.mobile.trim(),
           address: form.address.trim(),
+          doctor_name: doctor.name,
+          specialty: doctor.specialty,
           appointment_date: null,
           appointment_time: `Preferred Month: ${form.preferredMonth.trim()}`,
+          dob: null,
+          user_id: user?.id ?? null,
           status: 'upcoming',
         }
       : {
-          doctor_name: doctor.name,
-          specialty: doctor.specialty,
           patient_name: form.name.trim(),
-          dob: form.dob.trim(),
           mobile: form.mobile.trim(),
           address: form.address.trim(),
+          doctor_name: doctor.name,
+          specialty: doctor.specialty,
           appointment_date: selectedDate.date.toISOString().split('T')[0],
           appointment_time: selectedDate.timeDisplay,
+          dob: form.dob.trim(),
+          user_id: user?.id ?? null,
           status: 'upcoming',
         };
 
@@ -87,7 +89,8 @@ export default function BookingModal({ doctor, onClose }) {
 
     if (error) {
       setLoading(false);
-      setApiError('Failed to book. Please try again or call us directly.');
+      console.error('Supabase insert error:', error);
+      setApiError(`Booking failed: ${error.message}`);
       return;
     }
 
