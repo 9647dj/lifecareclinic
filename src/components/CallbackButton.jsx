@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import resend from '../lib/resend';
 
 const CLINIC_EMAIL = 'lifecarejourian@gmail.com';
-const FROM_EMAIL   = 'Life Care Clinic <onboarding@resend.dev>';
+const FROM_EMAIL   = 'Life Care Clinic <lifecarejourian@gmail.com>';
 
 const TIME_SLOTS = [
   'Morning (9AM – 12PM)',
@@ -82,7 +82,7 @@ export default function CallbackButton() {
         <p><b>Preferred Time:</b> ${form.preferredTime}</p>
         <p><b>Requested at:</b> ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
       `,
-    }).catch(() => {});
+    }).catch((err) => console.error('[CallbackButton] email send error:', err));
 
     setLoading(false);
     setStep('success');

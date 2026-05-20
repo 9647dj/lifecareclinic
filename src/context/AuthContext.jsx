@@ -3,9 +3,10 @@ import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext({});
 
-const STAFF_KEY = 'lcc_staff_authed';
-const ADMIN_KEY = 'lcc_admin_authed';
+const STAFF_KEY      = 'lcc_staff_authed';
+const ADMIN_KEY      = 'lcc_admin_authed';
 const STAFF_NAME_KEY = 'lcc_staff_name';
+const STAFF_ROLE_KEY = 'lcc_staff_role';
 
 export function AuthProvider({ children }) {
   const [user, setUser]           = useState(null);
@@ -89,6 +90,7 @@ export function AuthProvider({ children }) {
     if (data) {
       sessionStorage.setItem(STAFF_KEY, '1');
       sessionStorage.setItem(STAFF_NAME_KEY, data.full_name);
+      sessionStorage.setItem(STAFF_ROLE_KEY, 'staff');
       return true;
     }
     return false;
@@ -105,6 +107,7 @@ export function AuthProvider({ children }) {
     if (data) {
       sessionStorage.setItem(ADMIN_KEY, '1');
       sessionStorage.setItem(STAFF_NAME_KEY, data.full_name);
+      sessionStorage.setItem(STAFF_ROLE_KEY, 'admin');
       return true;
     }
     return false;
@@ -114,6 +117,11 @@ export function AuthProvider({ children }) {
     sessionStorage.removeItem(STAFF_KEY);
     sessionStorage.removeItem(ADMIN_KEY);
     sessionStorage.removeItem(STAFF_NAME_KEY);
+    sessionStorage.removeItem(STAFF_ROLE_KEY);
+  }
+
+  function getStaffRole() {
+    return sessionStorage.getItem(STAFF_ROLE_KEY) || null;
   }
 
   function isStaffAuthed() {
@@ -136,7 +144,7 @@ export function AuthProvider({ children }) {
       user, profile, authLoading,
       signUp, signIn, signOut, updateProfile, fetchProfile,
       staffLogin, adminLogin, staffLogout,
-      isStaffAuthed, isAdminAuthed, getStaffName,
+      isStaffAuthed, isAdminAuthed, getStaffName, getStaffRole,
     }}>
       {children}
     </AuthContext.Provider>

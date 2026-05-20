@@ -115,9 +115,9 @@ export default function Home() {
       const matchesSearch =
         !searchQuery ||
         d.name.toLowerCase().includes(q) ||
-        d.specialty.toLowerCase().includes(q) ||
-        (d.role || '').toLowerCase().includes(q) ||
-        d.category.toLowerCase().includes(q);
+        (d.specialty || '').toLowerCase().includes(q) ||
+        (d.qualification || '').toLowerCase().includes(q) ||
+        (d.category || '').toLowerCase().includes(q);
       const matchesCategory = selectedCategory === 'All' || d.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
@@ -426,7 +426,7 @@ export default function Home() {
               <div className="w-full h-80 sm:h-96">
                 <iframe
                   title="Life Care Clinic Location"
-                  src="https://maps.google.com/maps?q=32.8335247,74.5806594&z=17&output=embed"
+                  src="https://maps.google.com/maps?q=32.83340,74.58331&z=17&output=embed"
                   width="100%"
                   height="100%"
                   style={{ border: 0 }}

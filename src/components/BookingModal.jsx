@@ -1,18 +1,34 @@
+/**
+ * BookingModal — multi-step appointment booking flow
+ *
+ * Steps:  dates → form → confirm → success
+ * Eye camps skip the date-picker step (no fixed schedule).
+ *
+ * Key behaviours:
+ * - Auto-fills form from logged-in patient profile (AuthContext)
+ * - Upserts the patients table on every booking so the profile stays current
+ * - Sends a confirmation email to the patient (if they provide one) via the
+ *   /api/send-email serverless function; failure is caught silently so a broken
+ *   email config never blocks the actual booking
+ * - Generates a deterministic patient code (LC-XXXX-NNNN) from name + mobile —
+ *   no extra DB column needed
+ */
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import resend from '../lib/resend';
 import { getAvailableDates } from '../data/doctors';
 import DatePicker from './DatePicker';
 import { useAuth } from '../context/AuthContext';
+import { generatePatientCode } from '../lib/utils';
 
 const CLINIC_EMAIL = 'lifecarejourian@gmail.com';
-const FROM_EMAIL   = 'Life Care Clinic <onboarding@resend.dev>';
+const FROM_EMAIL   = 'Life Care Clinic <lifecarejourian@gmail.com>';
 
 export default function BookingModal({ doctor, onClose }) {
   const isEyeCamp = !!doctor.isEyeCamp;
   const [step, setStep] = useState(isEyeCamp ? 'form' : 'dates');
   const [selectedDate, setSelectedDate] = useState(null);
-  const [form, setForm] = useState({ name: '', dob: '', mobile: '', address: '', email: '', preferredMonth: '' });
+  const [form, setForm] = useState({ name: '', dob: '', mobile: '', address: '', email: '', gender: '', preferredMonth: '' });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
@@ -54,6 +70,7 @@ export default function BookingModal({ doctor, onClose }) {
     if (!form.mobile.trim()) e.mobile = 'Mobile number is required';
     else if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) e.mobile = 'Enter a valid 10-digit mobile number';
     if (!form.address.trim()) e.address = 'Address is required';
+    if (!form.gender) e.gender = 'Please select gender';
     if (isEyeCamp && !form.preferredMonth.trim()) e.preferredMonth = 'Preferred month is required';
     if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = 'Enter a valid email address';
     return e;
@@ -70,18 +87,19 @@ export default function BookingModal({ doctor, onClose }) {
       if (existing) {
         await supabase.from('patients').update({
           total_visits: (existing.total_visits || 0) + 1,
-          last_visit_at: new Date().toISOString(),
-          name: form.name.trim(),
+          full_name: form.name.trim(),
           address: form.address.trim(),
           ...(form.email.trim() && { email: form.email.trim() }),
+          ...(form.gender && { gender: form.gender }),
         }).eq('id', existing.id);
       } else {
         await supabase.from('patients').insert({
-          name: form.name.trim(),
+          full_name: form.name.trim(),
           mobile: form.mobile.trim(),
           dob: form.dob.trim() || null,
           address: form.address.trim(),
           email: form.email.trim() || null,
+          gender: form.gender || null,
           total_visits: 1,
         });
       }
@@ -107,6 +125,7 @@ export default function BookingModal({ doctor, onClose }) {
           address: form.address.trim(),
           email: form.email.trim() || null,
           doctor_name: doctor.name,
+          doctor_id: doctor.id || null,
           specialty: doctor.specialty,
           category: doctor.category || null,
           appointment_date: null,
@@ -122,6 +141,7 @@ export default function BookingModal({ doctor, onClose }) {
           address: form.address.trim(),
           email: form.email.trim() || null,
           doctor_name: doctor.name,
+          doctor_id: doctor.id || null,
           specialty: doctor.specialty,
           category: doctor.category || null,
           appointment_date: selectedDate.date.toISOString().split('T')[0],
@@ -144,6 +164,12 @@ export default function BookingModal({ doctor, onClose }) {
     // Best-effort patient record upsert
     await upsertPatient();
 
+    const patientCode = generatePatientCode(form.name.trim(), form.mobile.trim());
+    const dateLabel = isEyeCamp
+      ? `Preferred Month: ${form.preferredMonth.trim()}`
+      : selectedDate.date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const timeLabel = isEyeCamp ? 'Eye Camp — Awaiting Confirmation' : selectedDate.timeDisplay;
+
     resend.emails.send({
       from: FROM_EMAIL,
       to: CLINIC_EMAIL,
@@ -151,17 +177,41 @@ export default function BookingModal({ doctor, onClose }) {
       html: `
         <h2>New Appointment Booked!</h2>
         <p><b>Patient:</b> ${form.name.trim()}</p>
+        <p><b>Gender:</b> ${form.gender || '—'}</p>
         <p><b>DOB:</b> ${isEyeCamp ? 'N/A' : form.dob.trim()}</p>
         <p><b>Mobile:</b> ${form.mobile.trim()}</p>
         <p><b>Email:</b> ${form.email.trim() || '—'}</p>
         <p><b>Address:</b> ${form.address.trim()}</p>
+        <p><b>Patient ID:</b> ${patientCode || '—'}</p>
         <p><b>Doctor:</b> ${doctor.name}</p>
         <p><b>Specialty:</b> ${doctor.specialty}</p>
-        <p><b>Date:</b> ${isEyeCamp ? `Preferred Month: ${form.preferredMonth.trim()}` : selectedDate.date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
-        <p><b>Time:</b> ${isEyeCamp ? 'Eye Camp — Awaiting Confirmation' : selectedDate.timeDisplay}</p>
+        <p><b>Date:</b> ${dateLabel}</p>
+        <p><b>Time:</b> ${timeLabel}</p>
         <p><b>Booked at:</b> ${bookedAt}</p>
       `,
-    }).catch(() => {});
+    }).catch((err) => console.error('[BookingModal] clinic email error:', err));
+
+    if (form.email.trim()) {
+      resend.emails.send({
+        from: FROM_EMAIL,
+        to: form.email.trim(),
+        subject: `Appointment Confirmed — Life Care Clinic`,
+        html: `
+          <h2 style="color:#1a7a4a;">Appointment Confirmed!</h2>
+          <p>Dear ${form.name.trim()},</p>
+          <p>Your appointment has been successfully booked at <strong>Life Care Clinic, Jourian, Jammu Kashmir</strong>.</p>
+          <table style="border-collapse:collapse;width:100%;margin:16px 0;">
+            <tr><td style="padding:6px 12px;background:#f0faf4;font-weight:600;width:140px;">Doctor</td><td style="padding:6px 12px;">${doctor.name}</td></tr>
+            <tr><td style="padding:6px 12px;background:#f0faf4;font-weight:600;">Specialty</td><td style="padding:6px 12px;">${doctor.specialty}</td></tr>
+            <tr><td style="padding:6px 12px;background:#f0faf4;font-weight:600;">Date</td><td style="padding:6px 12px;">${dateLabel}</td></tr>
+            <tr><td style="padding:6px 12px;background:#f0faf4;font-weight:600;">Time</td><td style="padding:6px 12px;">${timeLabel}</td></tr>
+            ${patientCode ? `<tr><td style="padding:6px 12px;background:#f0faf4;font-weight:600;">Patient ID</td><td style="padding:6px 12px;font-weight:700;color:#1a7a4a;">${patientCode}</td></tr>` : ''}
+          </table>
+          ${!isEyeCamp ? '<p style="background:#fffbeb;border:1px solid #fde68a;padding:10px 14px;border-radius:8px;font-size:14px;">Please arrive <strong>15 minutes early</strong> with this confirmation.</p>' : ''}
+          <p style="color:#888;font-size:13px;margin-top:20px;">For queries, call <strong>01924-467500</strong>. Life Care Clinic, Main Road W No 7, Jourian, Near SBI, Jammu Kashmir 181202.</p>
+        `,
+      }).catch((err) => console.error('[BookingModal] patient email error:', err));
+    }
 
     setLoading(false);
     setStep('success');
@@ -195,7 +245,7 @@ export default function BookingModal({ doctor, onClose }) {
               </div>
               <div>
                 <h2 className="font-bold text-gray-900 text-lg leading-tight">{doctor.name}</h2>
-                <p className={`text-sm font-medium ${doctor.textColor}`}>{doctor.role || doctor.specialty}</p>
+                <p className={`text-sm font-medium ${doctor.textColor}`}>{doctor.specialty}</p>
               </div>
             </div>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-white/60 transition">
@@ -318,6 +368,26 @@ export default function BookingModal({ doctor, onClose }) {
                 )}
 
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Gender *</label>
+                  <div className="flex gap-4">
+                    {['Male', 'Female', 'Other'].map((g) => (
+                      <label key={g} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="gender"
+                          value={g}
+                          checked={form.gender === g}
+                          onChange={() => handleChange('gender', g)}
+                          className="w-4 h-4 accent-clinic-green"
+                        />
+                        <span className="text-sm text-gray-700">{g}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender}</p>}
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number *</label>
                   <input
                     type="tel"
@@ -426,6 +496,14 @@ export default function BookingModal({ doctor, onClose }) {
                   : 'Your booking has been successfully registered.'}
               </p>
 
+              {generatePatientCode(form.name, form.mobile) && (
+                <div className="bg-clinic-green text-white rounded-xl px-4 py-3 mb-4 text-center">
+                  <p className="text-xs font-semibold opacity-80 uppercase tracking-wide mb-0.5">Your Patient ID</p>
+                  <p className="text-xl font-bold tracking-wider">{generatePatientCode(form.name, form.mobile)}</p>
+                  <p className="text-xs opacity-70 mt-0.5">Keep this ID for future visits</p>
+                </div>
+              )}
+
               <div className="bg-clinic-green-lite border border-clinic-green-soft rounded-xl p-4 text-left space-y-2 mb-6">
                 <Detail label="Doctor" value={doctor.name} />
                 <Detail label="Specialty" value={doctor.specialty} />
@@ -439,6 +517,7 @@ export default function BookingModal({ doctor, onClose }) {
                   </>
                 )}
                 <Detail label="Patient" value={form.name} />
+                <Detail label="Gender" value={form.gender} />
                 <Detail label="Mobile" value={form.mobile} />
               </div>
 

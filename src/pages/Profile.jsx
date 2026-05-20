@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import logo from '../assets/logo.jpeg';
 import DatePicker from '../components/DatePicker';
+import { generatePatientCode } from '../lib/utils';
 
 const inputCls = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-clinic-green focus:border-clinic-green bg-white';
 
@@ -16,6 +17,7 @@ const STATUS_STYLE = {
   upcoming:  'bg-blue-100 text-blue-700',
   completed: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
+  no_show:   'bg-gray-200 text-gray-600',
 };
 
 export default function Profile() {
@@ -137,6 +139,11 @@ export default function Profile() {
               <div>
                 <h2 className="font-bold text-gray-900 text-lg">{displayName}</h2>
                 <p className="text-sm text-gray-500">{user?.email}</p>
+                {generatePatientCode(profile?.full_name, profile?.mobile) && (
+                  <p className="text-xs font-bold text-clinic-green mt-0.5 tracking-wide">
+                    ID: {generatePatientCode(profile?.full_name, profile?.mobile)}
+                  </p>
+                )}
               </div>
             </div>
             {!editing && (

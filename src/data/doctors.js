@@ -196,7 +196,7 @@ export function getAvailableDates(schedule) {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
 
-    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
     const slot = schedule.find((s) => s.day === dayName);
 
     if (slot) {

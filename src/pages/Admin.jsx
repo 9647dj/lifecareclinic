@@ -1,3 +1,18 @@
+/**
+ * Admin — privileged management panel (separate from the Staff dashboard)
+ *
+ * Tabs:
+ *   Overview     — live KPI cards and 30-day trend charts via Recharts
+ *   Appointments — full appointment table with status changes and date blocking
+ *   Doctors      — CRUD for the doctors table (name, specialty, schedule JSONB)
+ *   Staff        — create/disable staff accounts stored in staff_accounts table
+ *   Patients     — searchable patient registry with visit history
+ *   Callbacks    — callback request management
+ *   Analytics    — advanced charts and bulk email notification tool
+ *
+ * Access: requires adminLogin() to set the admin session flag in AuthContext.
+ * Staff can view the Staff dashboard but are redirected away from this page.
+ */
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import resend from '../lib/resend';
@@ -14,24 +29,42 @@ const STATUS_STYLE = {
   upcoming:  'bg-blue-100 text-blue-700',
   completed: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
+  no_show:   'bg-gray-200 text-gray-600',
 };
 
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const WEEKDAYS  = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAYS  = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const COLOR_THEMES = [
-  { label: 'Green',  color: 'bg-green-600',  light: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-700',  badge: 'bg-green-100 text-green-700' },
-  { label: 'Blue',   color: 'bg-blue-500',   light: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-700',   badge: 'bg-blue-100 text-blue-700' },
-  { label: 'Orange', color: 'bg-orange-500', light: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-700' },
-  { label: 'Purple', color: 'bg-purple-500', light: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700' },
-  { label: 'Red',    color: 'bg-red-600',    light: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-700',    badge: 'bg-red-100 text-red-700' },
-  { label: 'Teal',   color: 'bg-teal-600',   light: 'bg-teal-50',   border: 'border-teal-200',   text: 'text-teal-700',   badge: 'bg-teal-100 text-teal-700' },
-  { label: 'Pink',   color: 'bg-pink-500',   light: 'bg-pink-50',   border: 'border-pink-200',   text: 'text-pink-700',   badge: 'bg-pink-100 text-pink-700' },
-  { label: 'Cyan',   color: 'bg-cyan-600',   light: 'bg-cyan-50',   border: 'border-cyan-200',   text: 'text-cyan-700',   badge: 'bg-cyan-100 text-cyan-700' },
-  { label: 'Indigo', color: 'bg-indigo-600', light: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', badge: 'bg-indigo-100 text-indigo-700' },
+const CATEGORIES = [
+  'Orthopaedics', 'Paediatrics', 'Dermatology', 'Cardiology',
+  'General Medicine', 'ENT', 'Gynaecology', 'Dental', 'Eye Camp', 'Other',
 ];
 
-const EMPTY_DOC_FORM = { name: '', specialty: '', role: '', category: '', initials: '', themeIdx: 0, is_eye_camp: false, every_day: false, is_active: true, order_index: 0 };
+const EMPTY_DOC_FORM = { name: '', qualification: '', specialty: '', category: '', days: [], is_eye_camp: false, is_active: true, order_index: 0 };
+
+function to24h(t) {
+  if (!t) return '';
+  if (/^\d{2}:\d{2}$/.test(t)) return t;
+  const cleaned = t.replace(/\s*onwards\s*/i, '').trim();
+  const m = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return '';
+  let h = parseInt(m[1]);
+  const ampm = m[3].toUpperCase();
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${m[2]}`;
+}
+
+function to12h(t) {
+  if (!t) return '';
+  if (/AM|PM/i.test(t)) return t;
+  const [hStr, min] = t.split(':');
+  let h = parseInt(hStr);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  if (h > 12) h -= 12;
+  if (h === 0) h = 12;
+  return `${h}:${min} ${ampm}`;
+}
 
 function fmtDate(str) {
   if (!str) return '—';
@@ -72,7 +105,7 @@ export default function Admin() {
   const [showDoctorForm, setShowDoctorForm] = useState(false);
   const [editingDoctorId, setEditingDoctorId] = useState(null);
   const [doctorForm, setDoctorForm] = useState(EMPTY_DOC_FORM);
-  const [scheduleRows, setScheduleRows] = useState([{ day: 'Monday', startTime: '', endTime: '' }]);
+  const [daySchedule, setDaySchedule] = useState({});
   const [doctorSaving, setDoctorSaving] = useState(false);
   const [doctorMsg, setDoctorMsg] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
@@ -167,31 +200,35 @@ export default function Admin() {
   // ── Doctor CRUD ──
   function startAddDoctor() {
     setDoctorForm(EMPTY_DOC_FORM);
-    setScheduleRows([{ day: 'Monday', startTime: '', endTime: '' }]);
+    setDaySchedule({});
     setEditingDoctorId(null);
     setDoctorMsg('');
     setShowDoctorForm(true);
   }
 
   function startEditDoctor(doc) {
-    const themeIdx = COLOR_THEMES.findIndex((t) => t.color === doc.color);
+    const days = Array.isArray(doc.days) ? doc.days : [];
+    const timings = (doc.timings && typeof doc.timings === 'object') ? doc.timings : {};
+    const schedule = {};
+    days.forEach((day) => {
+      const timeRange = timings[day] || '';
+      const parts = timeRange.split(' - ');
+      schedule[day] = {
+        startTime: to24h((parts[0] || '').trim()),
+        endTime: to24h((parts[1] || '').trim()),
+      };
+    });
+    setDaySchedule(schedule);
     setDoctorForm({
       name: doc.name || '',
+      qualification: doc.qualification || '',
       specialty: doc.specialty || '',
-      role: doc.role || '',
       category: doc.category || '',
-      initials: doc.initials || '',
-      themeIdx: themeIdx >= 0 ? themeIdx : 0,
+      days,
       is_eye_camp: !!doc.isEyeCamp,
-      every_day: !!doc.everyDay,
       is_active: doc.is_active !== false,
       order_index: doc.order_index || 0,
     });
-    setScheduleRows(
-      doc.schedule?.length
-        ? doc.schedule.map((s) => ({ day: s.day, startTime: s.startTime, endTime: s.endTime || '' }))
-        : [{ day: 'Monday', startTime: '', endTime: '' }]
-    );
     setEditingDoctorId(doc.id);
     setDoctorMsg('');
     setShowDoctorForm(true);
@@ -200,29 +237,42 @@ export default function Admin() {
   async function saveDoctor() {
     if (!doctorForm.name.trim()) { setDoctorMsg('Doctor name is required'); return; }
     setDoctorSaving(true); setDoctorMsg('');
-    const theme = COLOR_THEMES[doctorForm.themeIdx] || COLOR_THEMES[0];
+    const selectedDays = doctorForm.is_eye_camp ? [] : doctorForm.days;
+    const timings = selectedDays.reduce((obj, day) => {
+      const s = daySchedule[day] || {};
+      if (s.startTime) {
+        obj[day] = s.endTime
+          ? `${to12h(s.startTime)} - ${to12h(s.endTime)}`
+          : `${to12h(s.startTime)} onwards`;
+      } else {
+        obj[day] = '';
+      }
+      return obj;
+    }, {});
     const payload = {
       name: doctorForm.name.trim(),
+      qualification: doctorForm.qualification.trim(),
       specialty: doctorForm.specialty.trim(),
-      role: doctorForm.role.trim(),
       category: doctorForm.category.trim(),
-      initials: doctorForm.initials.trim(),
-      color: theme.color,
-      light_color: theme.light,
-      border_color: theme.border,
-      text_color: theme.text,
-      badge_color: theme.badge,
-      schedule: doctorForm.is_eye_camp ? [] : scheduleRows.filter((r) => r.day && r.startTime),
+      days: selectedDays,
+      timings,
       is_eye_camp: doctorForm.is_eye_camp,
-      every_day: doctorForm.every_day,
       is_active: doctorForm.is_active,
       order_index: parseInt(doctorForm.order_index) || 0,
     };
-    const { error } = editingDoctorId
-      ? await supabase.from('doctors').update(payload).eq('id', editingDoctorId)
-      : await supabase.from('doctors').insert(payload);
-    if (error) {
-      setDoctorMsg('Error: ' + error.message);
+    let saveError = null;
+    if (editingDoctorId) {
+      const { data: affected, error } = await supabase
+        .from('doctors').update(payload).eq('id', editingDoctorId).select('id');
+      if (error) saveError = error.message;
+      else if (!affected || affected.length === 0)
+        saveError = 'Permission denied — update was blocked by database policy. Enable write access on the doctors table in Supabase.';
+    } else {
+      const { error } = await supabase.from('doctors').insert(payload);
+      if (error) saveError = error.message;
+    }
+    if (saveError) {
+      setDoctorMsg('Error: ' + saveError);
     } else {
       setShowDoctorForm(false);
       fetchDoctors();
@@ -282,7 +332,7 @@ export default function Admin() {
     setNotifySending(true); setNotifyResult('');
     for (const p of patientsWithEmail) {
       await resend.emails.send({
-        from: 'Life Care Clinic <onboarding@resend.dev>',
+        from: 'Life Care Clinic <lifecarejourian@gmail.com>',
         to: p.email,
         subject: `Appointment Reminder — ${notifyDoctor} on ${notifyDate}`,
         html: `
@@ -293,9 +343,9 @@ export default function Admin() {
           <p><b>Time:</b> ${p.appointment_time}</p>
           <p>${notifyMessage.replace(/\n/g, '<br/>')}</p>
           <hr/>
-          <p style="color:#666;font-size:12px;">Life Care Clinic, Main Road Jourian, Jammu Kashmir. For queries call 01924-467500.</p>
+          <p style="color:#666;font-size:12px;">Life Care Clinic, Main Road W No 7, Jourian, Near SBI, Jammu Kashmir 181202. For queries call 01924-467500.</p>
         `,
-      }).catch(() => {});
+      }).catch((err) => console.error('[Admin] notify email error:', err));
     }
     await supabase.from('notification_logs').insert({
       doctor_name: notifyDoctor,
@@ -597,9 +647,11 @@ export default function Admin() {
                             <td className="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">{fmtDateTime(apt.created_at)}</td>
                             <td className="px-4 py-3">
                               {status === 'upcoming' && (
-                                <div className="flex gap-1.5">
+                                <div className="flex flex-wrap gap-1.5">
                                   <button onClick={() => updateAppointmentStatus(apt.id, 'completed')} disabled={updatingId === apt.id}
                                     className="text-xs bg-green-100 hover:bg-green-200 text-green-700 font-semibold px-2.5 py-1 rounded-lg disabled:opacity-50 whitespace-nowrap transition">✓ Done</button>
+                                  <button onClick={() => updateAppointmentStatus(apt.id, 'no_show')} disabled={updatingId === apt.id}
+                                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold px-2.5 py-1 rounded-lg disabled:opacity-50 whitespace-nowrap transition">No Show</button>
                                   <button onClick={() => updateAppointmentStatus(apt.id, 'cancelled')} disabled={updatingId === apt.id}
                                     className="text-xs bg-red-100 hover:bg-red-200 text-red-700 font-semibold px-2.5 py-1 rounded-lg disabled:opacity-50 whitespace-nowrap transition">✕ Cancel</button>
                                 </div>
@@ -764,9 +816,8 @@ export default function Admin() {
                           </td>
                           <td className="px-4 py-3 text-xs text-gray-500">
                             {doc.isEyeCamp ? 'Eye Camp (on request)' :
-                              doc.everyDay ? 'Every day' :
-                              doc.schedule?.length
-                                ? doc.schedule.map((s) => s.day.substring(0, 3)).join(', ')
+                              doc.days?.length
+                                ? doc.days.map((d) => d.substring(0, 3)).join(', ')
                                 : '—'}
                           </td>
                           <td className="px-4 py-3">
@@ -810,44 +861,31 @@ export default function Admin() {
                   <div className="px-6 py-5 space-y-4">
                     {doctorMsg && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{doctorMsg}</div>}
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                        <input value={doctorForm.name} onChange={(e) => setDoctorForm({ ...doctorForm, name: e.target.value })}
-                          placeholder="Dr. Full Name" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Specialty / Qualifications</label>
-                        <input value={doctorForm.specialty} onChange={(e) => setDoctorForm({ ...doctorForm, specialty: e.target.value })}
-                          placeholder="e.g. M.B.B.S., M.D." className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Role / Title</label>
-                        <input value={doctorForm.role} onChange={(e) => setDoctorForm({ ...doctorForm, role: e.target.value })}
-                          placeholder="e.g. Orthopaedic Surgeon" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                        <input value={doctorForm.category} onChange={(e) => setDoctorForm({ ...doctorForm, category: e.target.value })}
-                          placeholder="e.g. Cardiology" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Initials (shown on card)</label>
-                        <input value={doctorForm.initials} onChange={(e) => setDoctorForm({ ...doctorForm, initials: e.target.value })}
-                          maxLength={4} placeholder="e.g. NS" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Colour Theme</label>
-                        <select value={doctorForm.themeIdx} onChange={(e) => setDoctorForm({ ...doctorForm, themeIdx: +e.target.value })}
-                          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white">
-                          {COLOR_THEMES.map((t, i) => <option key={i} value={i}>{t.label}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Order Index</label>
-                        <input type="number" min="0" value={doctorForm.order_index} onChange={(e) => setDoctorForm({ ...doctorForm, order_index: e.target.value })}
-                          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                      <input value={doctorForm.name} onChange={(e) => setDoctorForm({ ...doctorForm, name: e.target.value })}
+                        placeholder="Dr. Full Name" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Qualification</label>
+                      <input value={doctorForm.qualification} onChange={(e) => setDoctorForm({ ...doctorForm, qualification: e.target.value })}
+                        placeholder="e.g. M.B.B.S., M.D." className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Specialty</label>
+                      <input value={doctorForm.specialty} onChange={(e) => setDoctorForm({ ...doctorForm, specialty: e.target.value })}
+                        placeholder="e.g. Orthopaedic Surgeon" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green" />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                      <select value={doctorForm.category} onChange={(e) => setDoctorForm({ ...doctorForm, category: e.target.value })}
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-clinic-green bg-white">
+                        <option value="">Select category...</option>
+                        {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
                     </div>
 
                     <div className="flex gap-6">
@@ -865,29 +903,54 @@ export default function Admin() {
 
                     {!doctorForm.is_eye_camp && (
                       <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="text-sm font-medium text-gray-700">Schedule</label>
-                          <button type="button" onClick={() => setScheduleRows((p) => [...p, { day: 'Monday', startTime: '', endTime: '' }])}
-                            className="text-xs text-clinic-green hover:text-clinic-green-dark font-semibold">+ Add Day</button>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Schedule</label>
+                        <div className="space-y-2.5">
+                          {WEEKDAYS.map((day) => {
+                            const checked = doctorForm.days.includes(day);
+                            const ds = daySchedule[day] || { startTime: '', endTime: '' };
+                            return (
+                              <div key={day} className="flex items-center gap-3">
+                                <label className="flex items-center gap-2 w-14 cursor-pointer select-none flex-shrink-0">
+                                  <input type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      const updated = e.target.checked
+                                        ? [...doctorForm.days, day]
+                                        : doctorForm.days.filter((d) => d !== day);
+                                      setDoctorForm({ ...doctorForm, days: updated });
+                                      if (e.target.checked) {
+                                        setDaySchedule((prev) => ({ ...prev, [day]: { startTime: '', endTime: '' } }));
+                                      } else {
+                                        setDaySchedule((prev) => { const n = { ...prev }; delete n[day]; return n; });
+                                      }
+                                    }}
+                                    className="w-4 h-4 accent-clinic-green" />
+                                  <span className="text-sm font-medium text-gray-700">{day}</span>
+                                </label>
+                                {checked && (
+                                  <>
+                                    <div className="flex-1">
+                                      <input type="time" value={ds.startTime}
+                                        onChange={(e) => setDaySchedule((prev) => ({ ...prev, [day]: { ...prev[day], startTime: e.target.value } }))}
+                                        className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:ring-1 focus:ring-clinic-green" />
+                                      {ds.startTime && <p className="text-xs text-gray-400 mt-0.5 text-center">{to12h(ds.startTime)}</p>}
+                                    </div>
+                                    <span className="text-gray-400 text-sm flex-shrink-0">–</span>
+                                    <div className="flex-1">
+                                      <input type="time" value={ds.endTime}
+                                        onChange={(e) => setDaySchedule((prev) => ({ ...prev, [day]: { ...prev[day], endTime: e.target.value } }))}
+                                        className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm outline-none focus:ring-1 focus:ring-clinic-green" />
+                                      {ds.endTime
+                                        ? <p className="text-xs text-gray-400 mt-0.5 text-center">{to12h(ds.endTime)}</p>
+                                        : ds.startTime && <p className="text-xs text-gray-400 mt-0.5 text-center">onwards</p>}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
-                        <div className="space-y-2">
-                          {scheduleRows.map((row, idx) => (
-                            <div key={idx} className="flex gap-2 items-center">
-                              <select value={row.day} onChange={(e) => setScheduleRows((p) => p.map((r, i) => i === idx ? { ...r, day: e.target.value } : r))}
-                                className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm outline-none focus:ring-1 focus:ring-clinic-green bg-white flex-shrink-0">
-                                {WEEKDAYS.map((d) => <option key={d}>{d}</option>)}
-                              </select>
-                              <input value={row.startTime} onChange={(e) => setScheduleRows((p) => p.map((r, i) => i === idx ? { ...r, startTime: e.target.value } : r))}
-                                placeholder="e.g. 4:30 PM" className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm outline-none focus:ring-1 focus:ring-clinic-green flex-1 min-w-0" />
-                              <input value={row.endTime} onChange={(e) => setScheduleRows((p) => p.map((r, i) => i === idx ? { ...r, endTime: e.target.value } : r))}
-                                placeholder="End (optional)" className="border border-gray-200 rounded-lg px-2.5 py-2 text-sm outline-none focus:ring-1 focus:ring-clinic-green flex-1 min-w-0" />
-                              {scheduleRows.length > 1 && (
-                                <button type="button" onClick={() => setScheduleRows((p) => p.filter((_, i) => i !== idx))}
-                                  className="text-red-400 hover:text-red-600 flex-shrink-0 text-lg leading-none">×</button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                        <p className="text-xs text-gray-400 mt-2">Leave end time empty to save as "onwards"</p>
                       </div>
                     )}
                   </div>
