@@ -5,7 +5,8 @@ const FROM_EMAIL = 'Life Care Clinic <lifecarejourian@gmail.com>';
 
 const DOCTOR_META = {
   navdeep:    { name: 'Dr. Navdeep Singh',       specialty: 'Orthopaedic Spine Surgeon',      searchTerm: 'navdeep'    },
-  nikhil:     { name: 'Dr. Nikhil Gupta',         specialty: 'Child Specialist (Paediatrics)',  searchTerm: 'nikhil'     },
+  nikhil_thu: { name: 'Dr. Nikhil Gupta',         specialty: 'Child Specialist (Paediatrics)',  searchTerm: 'nikhil'     },
+  nikhil_sun: { name: 'Dr. Nikhil Gupta',         specialty: 'Child Specialist (Paediatrics)',  searchTerm: 'nikhil'     },
   gurbir:     { name: 'Dr. Gurbir Singh',          specialty: 'General & Laparoscopic Surgeon', searchTerm: 'gurbir'     },
   abhirut:    { name: 'Dr. Abhirut Thakur',        specialty: 'Skin Specialist (Dermatology)',  searchTerm: 'abhirut'    },
   dhaneshwar: { name: 'Dr. Dhaneshwar Kapoor',     specialty: 'Cardiology Consultant',          searchTerm: 'dhaneshwar' },

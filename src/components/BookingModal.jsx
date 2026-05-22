@@ -21,8 +21,7 @@ import DatePicker from './DatePicker';
 import { useAuth } from '../context/AuthContext';
 import { generatePatientCode } from '../lib/utils';
 
-const CLINIC_EMAIL = 'lifecarejourian@gmail.com';
-const FROM_EMAIL   = 'Life Care Clinic <lifecarejourian@gmail.com>';
+const FROM_EMAIL = 'Life Care Clinic <lifecarejourian@gmail.com>';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 function getNextSixMonths() {
@@ -133,8 +132,6 @@ export default function BookingModal({ doctor, onClose }) {
     setLoading(true);
     setApiError('');
 
-    const bookedAt = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
-
     const payload = isEyeCamp
       ? {
           patient_name: form.name.trim(),
@@ -186,27 +183,6 @@ export default function BookingModal({ doctor, onClose }) {
       ? `Preferred Month: ${form.preferredMonth.trim()}`
       : selectedDate.date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const timeLabel = isEyeCamp ? 'Eye Camp — Awaiting Confirmation' : selectedDate.timeDisplay;
-
-    resend.emails.send({
-      from: FROM_EMAIL,
-      to: CLINIC_EMAIL,
-      subject: `New Appointment Booked - ${doctor.name}`,
-      html: `
-        <h2>New Appointment Booked!</h2>
-        <p><b>Patient:</b> ${form.name.trim()}</p>
-        <p><b>Gender:</b> ${form.gender || '—'}</p>
-        <p><b>DOB:</b> ${isEyeCamp ? 'N/A' : form.dob.trim()}</p>
-        <p><b>Mobile:</b> ${form.mobile.trim()}</p>
-        <p><b>Email:</b> ${form.email.trim() || '—'}</p>
-        <p><b>Address:</b> ${form.address.trim()}</p>
-        <p><b>Patient ID:</b> ${patientCode || '—'}</p>
-        <p><b>Doctor:</b> ${doctor.name}</p>
-        <p><b>Specialty:</b> ${doctor.specialty}</p>
-        <p><b>Date:</b> ${dateLabel}</p>
-        <p><b>Time:</b> ${timeLabel}</p>
-        <p><b>Booked at:</b> ${bookedAt}</p>
-      `,
-    }).catch((err) => console.error('[BookingModal] clinic email error:', err));
 
     if (form.email.trim()) {
       resend.emails.send({
