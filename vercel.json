@@ -1,3 +1,24 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "crons": [
+    { "path": "/api/cron/doctor-summary?doctor=navdeep",    "schedule": "45 10 * * 2,6"  },
+    { "path": "/api/cron/doctor-summary?doctor=nikhil",     "schedule": "0 8 * * 4"      },
+    { "path": "/api/cron/doctor-summary?doctor=nikhil",     "schedule": "30 5 * * 0"     },
+    { "path": "/api/cron/doctor-summary?doctor=gurbir",     "schedule": "30 4 * * 0"     },
+    { "path": "/api/cron/doctor-summary?doctor=abhirut",    "schedule": "30 8 * * 6"     },
+    { "path": "/api/cron/doctor-summary?doctor=dhaneshwar", "schedule": "0 7 * * 6"      },
+    { "path": "/api/cron/doctor-summary?doctor=manoj",      "schedule": "0 9 * * 1,3,5"  },
+    { "path": "/api/cron/doctor-summary?doctor=anju",       "schedule": "30 8 * * 0"     },
+    { "path": "/api/cron/doctor-summary?doctor=naveen",     "schedule": "0 9 * * *"      },
+
+    { "path": "/api/cron/patient-reminder?doctor=navdeep",    "schedule": "45 11 * * 2,6" },
+    { "path": "/api/cron/patient-reminder?doctor=nikhil",     "schedule": "0 9 * * 4"     },
+    { "path": "/api/cron/patient-reminder?doctor=nikhil",     "schedule": "30 6 * * 0"    },
+    { "path": "/api/cron/patient-reminder?doctor=gurbir",     "schedule": "30 5 * * 0"    },
+    { "path": "/api/cron/patient-reminder?doctor=abhirut",    "schedule": "30 9 * * 6"    },
+    { "path": "/api/cron/patient-reminder?doctor=dhaneshwar", "schedule": "0 8 * * 6"     },
+    { "path": "/api/cron/patient-reminder?doctor=manoj",      "schedule": "0 10 * * 1,3,5"},
+    { "path": "/api/cron/patient-reminder?doctor=anju",       "schedule": "30 9 * * 0"    },
+    { "path": "/api/cron/patient-reminder?doctor=naveen",     "schedule": "0 10 * * *"    }
+  ]
 }
