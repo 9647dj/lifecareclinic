@@ -12,7 +12,6 @@ export default function DoctorCard({ doctor, onBook }) {
           <div className="flex-1 min-w-0 pt-0.5">
             <h3 className="font-bold text-gray-900 text-base leading-snug">{doctor.name}</h3>
             <p className={`text-sm font-semibold mt-0.5 ${doctor.textColor}`}>{doctor.specialty || doctor.category}</p>
-            <p className="mt-1.5 text-xs text-gray-500 leading-relaxed italic line-clamp-2">{doctor.specialty}</p>
           </div>
         </div>
         <div className="mt-3">

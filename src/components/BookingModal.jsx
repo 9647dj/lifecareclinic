@@ -32,6 +32,12 @@ function getNextSixMonths() {
     return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
   });
 }
+function preferredMonthToDate(monthStr) {
+  const [monthName, year] = monthStr.trim().split(' ');
+  const idx = MONTH_NAMES.indexOf(monthName);
+  if (idx === -1 || !year) return null;
+  return `${year}-${String(idx + 1).padStart(2, '0')}-01`;
+}
 
 export default function BookingModal({ doctor, onClose }) {
   const isEyeCamp = !!doctor.isEyeCamp;
@@ -139,11 +145,11 @@ export default function BookingModal({ doctor, onClose }) {
           doctor_id: doctor.id || null,
           specialty: doctor.specialty,
           category: doctor.category || null,
-          appointment_date: null,
-          appointment_time: `Preferred Month: ${form.preferredMonth.trim()}`,
+          appointment_date: preferredMonthToDate(form.preferredMonth),
+          appointment_time: 'TBD - Will be confirmed',
           dob: null,
           user_id: user?.id ?? null,
-          status: 'upcoming',
+          status: 'pending_confirmation',
           booking_channel: 'website',
         }
       : {
