@@ -132,6 +132,7 @@ export default function Footer() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-green-400">
           <span>&copy; 2025 Life Care Clinic, Jourian, Jammu Kashmir. All rights reserved.</span>
           <div className="flex items-center gap-4">
+            <Link to="/privacy-policy" className="text-green-500 hover:text-green-300 transition-colors">Privacy Policy</Link>
             <Link to="/staff-login" className="text-green-500 hover:text-green-300 transition-colors">Staff Login</Link>
             <Link to="/admin-login" className="text-green-500 hover:text-green-300 transition-colors">Admin</Link>
             <span className="flex items-center gap-1">

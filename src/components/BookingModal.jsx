@@ -24,6 +24,15 @@ import { generatePatientCode } from '../lib/utils';
 const CLINIC_EMAIL = 'lifecarejourian@gmail.com';
 const FROM_EMAIL   = 'Life Care Clinic <lifecarejourian@gmail.com>';
 
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function getNextSixMonths() {
+  const now = new Date();
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+  });
+}
+
 export default function BookingModal({ doctor, onClose }) {
   const isEyeCamp = !!doctor.isEyeCamp;
   const [step, setStep] = useState(isEyeCamp ? 'form' : 'dates');
@@ -33,6 +42,7 @@ export default function BookingModal({ doctor, onClose }) {
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
   const [blockedDates, setBlockedDates] = useState(new Set());
+  const [consent, setConsent] = useState(false);
   const { user, profile } = useAuth();
 
   useEffect(() => {
@@ -73,6 +83,7 @@ export default function BookingModal({ doctor, onClose }) {
     if (!form.gender) e.gender = 'Please select gender';
     if (isEyeCamp && !form.preferredMonth.trim()) e.preferredMonth = 'Preferred month is required';
     if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = 'Enter a valid email address';
+    if (!consent) e.consent = 'You must agree to the privacy policy to continue';
     return e;
   }
 
@@ -429,13 +440,16 @@ export default function BookingModal({ doctor, onClose }) {
                 {isEyeCamp && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Month *</label>
-                    <input
-                      type="text"
+                    <select
                       value={form.preferredMonth}
                       onChange={(e) => handleChange('preferredMonth', e.target.value)}
-                      placeholder="e.g. June 2026"
                       className={`w-full border rounded-xl px-4 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.preferredMonth ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
-                    />
+                    >
+                      <option value="">Select preferred month</option>
+                      {getNextSixMonths().map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
                     {errors.preferredMonth && <p className="text-red-500 text-xs mt-1">{errors.preferredMonth}</p>}
                   </div>
                 )}
@@ -445,6 +459,27 @@ export default function BookingModal({ doctor, onClose }) {
                     {apiError}
                   </div>
                 )}
+
+                <div className={`flex items-start gap-3 rounded-xl px-4 py-3 border ${errors.consent ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'}`}>
+                  <input
+                    type="checkbox"
+                    id="consent"
+                    checked={consent}
+                    onChange={(e) => {
+                      setConsent(e.target.checked);
+                      if (errors.consent) setErrors((er) => ({ ...er, consent: '' }));
+                    }}
+                    className="mt-0.5 w-4 h-4 flex-shrink-0 cursor-pointer"
+                  />
+                  <label htmlFor="consent" className="text-sm text-gray-600 cursor-pointer leading-snug">
+                    I agree that Life Care Clinic may collect and store my personal data for appointment booking purposes.{' '}
+                    <a href="/privacy-policy" target="_blank" rel="noopener noreferrer"
+                      className="text-clinic-green hover:underline font-medium">
+                      View Privacy Policy
+                    </a>
+                  </label>
+                </div>
+                {errors.consent && <p className="text-red-500 text-xs -mt-2">{errors.consent}</p>}
 
                 <div className="flex gap-3 pt-1">
                   {!isEyeCamp && (

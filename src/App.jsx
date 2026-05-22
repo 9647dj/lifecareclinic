@@ -10,6 +10,7 @@ import Profile from './pages/Profile';
 import StaffLogin from './pages/StaffLogin';
 import StaffDashboard from './pages/StaffDashboard';
 import AdminLogin from './pages/AdminLogin';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import CallbackButton from './components/CallbackButton';
 import WhatsAppButton from './components/WhatsAppButton';
 
@@ -28,6 +29,7 @@ export default function App() {
               <Route path="/staff-dashboard" element={<StaffRoute><StaffDashboard /></StaffRoute>} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             </Routes>
           </div>
           <Footer />
